@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const { data } = await api.post<{ token: string; user: AuthUser }>('/auth/login', {
+      const { data } = await api.post<{ token: string; user: AuthUser }>('/api/auth/login', {
         email,
         password,
       });
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = useCallback(
     async (name: string, email: string, password: string) => {
-      await api.post<{ user: AuthUser }>('/auth/signup', { name, email, password });
+      await api.post<{ user: AuthUser }>('/api/auth/signup', { name, email, password });
       router.replace('/login');
     },
     [router],

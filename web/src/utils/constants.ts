@@ -1,10 +1,10 @@
-/** Trim and strip trailing slashes so paths like `/auth/login` never become `//auth/login`. */
+/** Trim and strip trailing slashes so paths like `/api/auth/login` never become `//api/auth/login`. */
 export function normalizePublicOrigin(raw: string | undefined): string {
   if (raw == null || raw === '') return '';
   return raw.trim().replace(/\/+$/, '');
 }
 
-/** Public env (inlined at build time). Backend mounts `/auth` and `/session` at server root — no `/api` prefix. */
+/** Public env (inlined at build time). Auth is under `/api/auth` on the server; use `NEXT_PUBLIC_API_URL` without a trailing `/api` so paths are not doubled. */
 export const API_BASE_URL = normalizePublicOrigin(process.env.NEXT_PUBLIC_API_URL);
 
 export const SOCKET_BASE_URL =
