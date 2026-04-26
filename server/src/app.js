@@ -26,6 +26,6 @@ app.get('/test-db', async (_req, res) => {
   res.send('DB connected if no crash 🚀');
 });
 
-app.use(routes);
+app.use('/api', routes);
 
 module.exports = app;
