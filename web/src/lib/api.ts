@@ -3,7 +3,7 @@ import { API_BASE_URL, TOKEN_KEY } from '@/utils/constants';
 
 export const api = axios.create({
   baseURL: API_BASE_URL || undefined,
-  timeout: 25000,
+  timeout: 40000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -62,6 +62,8 @@ api.interceptors.response.use(
       console.error('API ERROR:', error.response?.status, data ?? error.message);
     }
 
-    return Promise.reject(new Error(msg));
+    const err = new Error(msg) as Error & { code?: string };
+    if (error.code) err.code = error.code;
+    return Promise.reject(err);
   },
 );

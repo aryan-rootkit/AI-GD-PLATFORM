@@ -8,6 +8,13 @@ async function create(req, res, next) {
     });
     res.status(201).json(session);
   } catch (err) {
+    console.error('[session] create failed:', err);
+    if (!res.headersSent) {
+      const status = err.status || 500;
+      const message = err.message || 'Failed to create session';
+      res.status(status).json({ error: message });
+      return;
+    }
     next(err);
   }
 }

@@ -8,12 +8,13 @@ async function createSession({ title, hostId }) {
     e.status = 400;
     throw e;
   }
+  console.log('Creating session…', { title: title.trim(), hostId });
   const session = await sessionModel.createSession({ title: title.trim(), hostId });
-  try {
-    await enqueueSessionCreatedSample(session.id);
-  } catch (err) {
-    console.warn('[session] queue enqueue skipped:', err.message);
-  }
+  console.log('Session created:', session);
+  // Do not await: Redis/BullMQ can hang the HTTP response if Redis is slow or unreachable.
+  enqueueSessionCreatedSample(session.id).catch((err) => {
+    console.warn('[session] queue enqueue skipped:', err?.message || err);
+  });
   return session;
 }
 
