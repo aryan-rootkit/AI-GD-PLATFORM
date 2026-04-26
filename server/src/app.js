@@ -1,12 +1,25 @@
 require('./config/env');
 
 const express = require('express');
+const cors = require('cors');
 const routes = require('./routes');
-const { createCorsMiddleware } = require('./middleware/cors.middleware');
+const { getAllowedOrigins } = require('./config/corsOrigins');
 
 const app = express();
 
-app.use(createCorsMiddleware());
+app.use(
+  cors({
+    origin(origin, callback) {
+      const allowedOrigins = getAllowedOrigins();
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(null, false);
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 app.get('/test-db', async (_req, res) => {

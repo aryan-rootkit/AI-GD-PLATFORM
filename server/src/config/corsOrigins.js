@@ -5,7 +5,11 @@
  *
  * @example CLIENT_ORIGIN=https://my-app.vercel.app,https://my-app-git-main-org.vercel.app
  */
-const DEFAULT_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+const DEFAULT_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://aigdplatform.vercel.app',
+];
 
 function parseClientOrigins() {
   const raw = process.env.CLIENT_ORIGIN || '';
@@ -25,24 +29,7 @@ function getSocketCorsOrigin() {
   return getAllowedOrigins();
 }
 
-/** Express `cors` dynamic origin callback */
-function expressCorsOrigin() {
-  const list = getAllowedOrigins();
-  return (origin, callback) => {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-    if (list.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-    callback(null, false);
-  };
-}
-
 module.exports = {
   getAllowedOrigins,
   getSocketCorsOrigin,
-  expressCorsOrigin,
 };
