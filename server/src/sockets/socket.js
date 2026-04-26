@@ -1,9 +1,29 @@
 const { Server } = require('socket.io');
 const { verifyToken } = require('../utils/jwt');
 const { getSocketCorsOrigin } = require('../config/corsOrigins');
+const logger = require('../utils/logger');
+const { generateModeratorResponse } = require('../services/ai.service');
 const sessionService = require('../services/session.service');
 
 let ioRef;
+
+/**
+ * Run OpenAI in the background so the `send_message` handler returns after the user message
+ * is persisted and broadcast, without waiting for the API.
+ * @param {import('socket.io').Server} io
+ */
+function runAiModeration(io, sessionId, userText) {
+  (async () => {
+    try {
+      const reply = await generateModeratorResponse([{ role: 'user', content: userText }]);
+      if (!reply) return;
+      const saved = await sessionService.appendAIModeratorMessage({ sessionId, text: reply });
+      io.to(String(sessionId)).emit('receive_message', saved);
+    } catch (err) {
+      logger.error('AI moderation failed', err);
+    }
+  })();
+}
 
 function getIo() {
   return ioRef;
@@ -72,6 +92,9 @@ function attachSocket(httpServer) {
           text: String(text),
         });
         io.to(String(sessionId)).emit('receive_message', saved);
+        if (String(text).length > 20) {
+          runAiModeration(io, String(sessionId), String(text));
+        }
       } catch (err) {
         socket.emit('room_error', {
           sessionId: String(sessionId),

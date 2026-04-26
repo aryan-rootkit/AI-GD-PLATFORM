@@ -73,6 +73,31 @@ async function appendSessionMessage({ sessionId, userId, senderEmail, text }) {
   });
 }
 
+const AI_MODERATOR_USER_ID = 'ai-moderator';
+
+/**
+ * Appends a message from the AI moderator (not a room participant; session must be active).
+ */
+async function appendAIModeratorMessage({ sessionId, text }) {
+  const session = await sessionModel.findById(sessionId);
+  if (!session) {
+    const e = new Error('session not found');
+    e.status = 404;
+    throw e;
+  }
+  if (session.status !== 'active') {
+    const e = new Error('session is not active');
+    e.status = 400;
+    throw e;
+  }
+  return messageModel.append({
+    sessionId,
+    userId: AI_MODERATOR_USER_ID,
+    senderEmail: 'AI Moderator',
+    text,
+  });
+}
+
 async function endSession({ sessionId, userId }) {
   const existing = await sessionModel.findById(sessionId);
   if (!existing) {
@@ -101,4 +126,5 @@ module.exports = {
   getSessionForUser,
   listSessionMessages,
   appendSessionMessage,
+  appendAIModeratorMessage,
 };
