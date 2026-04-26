@@ -10,16 +10,16 @@ export type Session = {
 };
 
 export async function apiCreateSession(title: string) {
-  const { data } = await api.post<Session>('/session/create', { title });
+  const { data } = await api.post<Session>('/api/session/create', { title });
   return data;
 }
 
 export async function apiJoinSession(sessionId: string) {
-  const { data } = await api.post<Session>(`/session/join/${sessionId}`);
+  const { data } = await api.post<Session>(`/api/session/join/${sessionId}`);
   return data;
 }
 
 export async function apiEndSession(sessionId: string) {
-  const { data } = await api.post<Session>(`/session/end/${sessionId}`);
+  const { data } = await api.post<Session>(`/api/session/end/${sessionId}`);
   return data;
 }
