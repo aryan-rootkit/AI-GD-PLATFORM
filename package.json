@@ -1,0 +1,13 @@
+{
+  "name": "ai-gd-platform",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo root (not the deployable Next app). The Next.js app is in /web — set Vercel Root Directory to web, or rely on root vercel.json to build web/.",
+  "scripts": {
+    "build": "npm run build --prefix web",
+    "vercel-build": "npm run build --prefix web"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
