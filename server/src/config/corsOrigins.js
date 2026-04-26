@@ -1,35 +1,63 @@
 /**
- * Browser origins allowed for credentialed CORS + Socket.IO.
- * Set CLIENT_ORIGIN on the host (e.g. Render) to your Vercel URL(s).
- * Comma-separated for multiple origins (e.g. production + preview).
- *
- * @example CLIENT_ORIGIN=https://my-app.vercel.app,https://my-app-git-main-org.vercel.app
+ * CORS: allow any Vercel deployment (including preview) via `*.vercel.app`, localhost, and
+ * optional CLIENT_ORIGIN (comma-separated) for other production domains.
  */
-const DEFAULT_ORIGINS = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'https://aigdplatform.vercel.app',
-];
 
 function parseClientOrigins() {
   const raw = process.env.CLIENT_ORIGIN || '';
-  const fromEnv = raw
+  return raw
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  return Array.from(new Set([...DEFAULT_ORIGINS, ...fromEnv]));
 }
 
-function getAllowedOrigins() {
-  return parseClientOrigins();
+const extraOrigins = () => new Set(parseClientOrigins());
+
+/**
+ * @param {string | undefined} origin - `Origin` header; omitted for non-browser or same-site
+ * @returns {boolean}
+ */
+function isCorsOriginAllowed(origin) {
+  if (!origin) {
+    return true;
+  }
+  let url;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return false;
+  }
+  const host = url.hostname;
+  if (host === 'vercel.app' || host.endsWith('.vercel.app')) {
+    return true;
+  }
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return true;
+  }
+  if (extraOrigins().has(origin)) {
+    return true;
+  }
+  return false;
 }
 
-/** Socket.IO `cors.origin`: array of allowed origins */
+/** Express `cors({ origin })` and Socket.IO `cors.origin` (same as the `cors` package) */
+const corsOriginHandler = (origin, callback) => {
+  if (isCorsOriginAllowed(origin)) {
+    return callback(null, true);
+  }
+  return callback(new Error('Not allowed by CORS'), false);
+};
+
+/** Socket.IO reads `cors.origin` as this call’s return value */
 function getSocketCorsOrigin() {
-  return getAllowedOrigins();
+  return corsOriginHandler;
 }
 
 module.exports = {
-  getAllowedOrigins,
+  isCorsOriginAllowed,
   getSocketCorsOrigin,
+  corsOriginHandler,
 };

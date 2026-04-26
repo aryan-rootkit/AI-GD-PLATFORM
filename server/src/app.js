@@ -3,20 +3,13 @@ require('./config/env');
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
-const { getAllowedOrigins } = require('./config/corsOrigins');
+const { corsOriginHandler } = require('./config/corsOrigins');
 
 const app = express();
 
 app.use(
   cors({
-    origin(origin, callback) {
-      const allowedOrigins = getAllowedOrigins();
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(null, false);
-    },
+    origin: corsOriginHandler,
     credentials: true,
   }),
 );
