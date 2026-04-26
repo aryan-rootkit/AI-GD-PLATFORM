@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "skipLibCheck": true,
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": false
+  },
+  "include": ["server/**/*.js"],
+  "exclude": ["**/node_modules/**"]
+}

@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "AI GD Platform",
+    "slug": "ai-gd-platform",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "aigd",
+    "platforms": ["ios", "android", "web"],
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aigd.platform"
+    },
+    "android": {
+      "package": "com.aigd.platform",
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

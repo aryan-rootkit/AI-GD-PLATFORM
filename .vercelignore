@@ -1,0 +1,4 @@
+# Expo / React Native app — must not be scanned or bundled for this Vercel project.
+# Prefer Vercel → Settings → Root Directory = `web` (Next.js). This file helps when the repo root is used.
+client
+Client

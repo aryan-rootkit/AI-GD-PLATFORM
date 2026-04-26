@@ -1,0 +1,96 @@
+'use client';
+
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
+import { TOKEN_KEY, USER_KEY } from '@/utils/constants';
+
+export type AuthUser = { id: string; email: string; name?: string };
+
+type AuthContextValue = {
+  user: AuthUser | null;
+  token: string | null;
+  ready: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
+  logout: () => void;
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function readStoredUser(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const t = localStorage.getItem(TOKEN_KEY);
+    const u = readStoredUser();
+    setToken(t);
+    setUser(u);
+    setReady(true);
+  }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { data } = await api.post<{ token: string; user: AuthUser }>('/auth/login', {
+        email,
+        password,
+      });
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
+      router.replace('/dashboard');
+    },
+    [router],
+  );
+
+  const signup = useCallback(
+    async (name: string, email: string, password: string) => {
+      await api.post<{ user: AuthUser }>('/auth/signup', { name, email, password });
+      router.replace('/login');
+    },
+    [router],
+  );
+
+  const logout = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    setToken(null);
+    setUser(null);
+    router.replace('/login');
+  }, [router]);
+
+  const value = useMemo(
+    () => ({ user, token, ready, login, signup, logout }),
+    [user, token, ready, login, signup, logout],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}
