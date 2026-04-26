@@ -15,16 +15,20 @@ async function connectDB() {
   const uri = getMongoUri();
   if (!uri) {
     logger.warn('MONGO_URI / MONGODB_URI not set — using in-memory user/session store');
-    return;
+    return Promise.resolve();
   }
 
-  try {
-    await mongoose.connect(uri);
-    logger.info('MongoDB connected');
-  } catch (error) {
-    logger.error('MongoDB connection failed', error);
-    process.exit(1);
-  }
+  return mongoose
+    .connect(uri)
+    .then(() => {
+      console.log('✅ MongoDB Connected');
+      logger.info('MongoDB connected');
+    })
+    .catch((err) => {
+      console.error('❌ MongoDB Error:', err);
+      logger.error('MongoDB connection failed', err);
+      return Promise.reject(err);
+    });
 }
 
 module.exports = { connectDB, getMongoUri, mongoose };
