@@ -37,7 +37,7 @@ export default function DashboardPage() {
     }
     setBusy('create');
     try {
-      const { data } = await api.post<Session>('/session/create', { title: title.trim() });
+      const { data } = await api.post<Session>('/api/session/create', { title: title.trim() });
       goRoom(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create session');
@@ -55,7 +55,7 @@ export default function DashboardPage() {
     }
     setBusy('join');
     try {
-      const { data } = await api.post<Session>(`/session/join/${id}`);
+      const { data } = await api.post<Session>(`/api/session/join/${id}`);
       goRoom(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not join session');

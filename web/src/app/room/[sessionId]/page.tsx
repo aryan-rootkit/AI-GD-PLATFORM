@@ -49,7 +49,7 @@ export default function RoomPage() {
       let m = readRoomMeta(sessionId);
       if (!m.title && !m.hostId) {
         try {
-          const { data } = await api.get<Session>(`/session/${sessionId}`);
+          const { data } = await api.get<Session>(`/api/session/${sessionId}`);
           if (cancelled) return;
           m = { title: data.title, hostId: data.hostId, sessionId: data.id };
           sessionStorage.setItem('roomMeta', JSON.stringify(m));
@@ -62,7 +62,7 @@ export default function RoomPage() {
       setMeta(m);
 
       try {
-        const { data } = await api.get<ChatPayload[]>(`/session/${sessionId}/messages`);
+        const { data } = await api.get<ChatPayload[]>(`/api/session/${sessionId}/messages`);
         if (!cancelled) setMessages(data);
       } catch {
         if (!cancelled) setError('Could not load message history');
@@ -134,7 +134,7 @@ export default function RoomPage() {
     setEnding(true);
     setError(null);
     try {
-      await api.post(`/session/end/${sessionId}`);
+      await api.post(`/api/session/end/${sessionId}`);
       sessionStorage.removeItem('roomMeta');
       router.replace('/dashboard');
     } catch (e) {
