@@ -22,6 +22,26 @@ function isTimeoutError(e: unknown): boolean {
   return false;
 }
 
+function getApiErrorStatus(e: unknown): number | undefined {
+  if (e && typeof e === 'object' && 'status' in e && typeof (e as { status?: unknown }).status === 'number') {
+    return (e as { status: number }).status;
+  }
+  return undefined;
+}
+
+function sessionActionErrorMessage(e: unknown, fallback: string): string {
+  if (isTimeoutError(e)) {
+    return 'Server is taking too long. Please try again.';
+  }
+  if (getApiErrorStatus(e) === 401) {
+    return 'Sign-in required or your session expired. Sign out, sign in again, then retry. Each person joining needs their own account.';
+  }
+  if (e instanceof Error && e.message) {
+    return e.message;
+  }
+  return fallback;
+}
+
 function Spinner() {
   return (
     <svg
@@ -96,7 +116,7 @@ export default function DashboardPage() {
         }
       }
     } catch (e) {
-      setError(isTimeoutError(e) ? 'Server is taking too long. Please try again.' : 'Failed to create session');
+      setError(sessionActionErrorMessage(e, 'Failed to create session'));
     } finally {
       setBusy(null);
     }
@@ -126,7 +146,7 @@ export default function DashboardPage() {
         }
       }
     } catch (e) {
-      setError(isTimeoutError(e) ? 'Server is taking too long. Please try again.' : 'Failed to join session');
+      setError(sessionActionErrorMessage(e, 'Failed to join session'));
     } finally {
       setBusy(null);
     }
@@ -241,6 +261,10 @@ export default function DashboardPage() {
             <section className="rounded-2xl border border-slate-800/90 bg-slate-900/40 p-5 sm:p-6">
               <h2 className="text-lg font-semibold text-white">Join session</h2>
               <p className="mt-1 text-sm text-slate-400">Paste a session id from the host.</p>
+              <p className="mt-2 text-xs text-slate-500">
+                Each participant must be signed in here with their own account; the join request sends your auth
+                token to the server.
+              </p>
               <div className="mt-4 space-y-3">
                 <Input
                   label="Session ID"
@@ -274,12 +298,14 @@ export default function DashboardPage() {
         <p className="mt-4 rounded-lg bg-rose-950/50 px-4 py-3 text-sm text-rose-100">{error}</p>
       )}
 
-      <p className="mt-8 text-center text-xs text-slate-500">
-        Need an account?{' '}
-        <Link href="/signup" className="text-violet-400 hover:underline">
-          Sign up
-        </Link>
-      </p>
+      {!user && (
+        <p className="mt-8 text-center text-xs text-slate-500">
+          Need an account?{' '}
+          <Link href="/signup" className="text-violet-400 hover:underline">
+            Sign up
+          </Link>
+        </p>
+      )}
     </AppShell>
   );
 }

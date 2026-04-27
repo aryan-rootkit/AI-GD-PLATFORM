@@ -1,10 +1,12 @@
 import { MContainer } from './Container';
 import { Monitor, LayoutPanelLeft, Bot } from 'lucide-react';
 
+/** Placeholder photos (replace with product shots when ready). */
 const previews = [
   {
     title: 'Live session',
     sub: 'Room + chat + presence',
+    imageSrc: 'https://picsum.photos/seed/aigd-live/960/540',
     icon: Monitor,
     content: (
       <div className="space-y-1.5 p-2 text-[8px] text-slate-400 sm:text-[9px]">
@@ -22,6 +24,7 @@ const previews = [
   {
     title: 'AI summary',
     sub: 'Structured takeaways',
+    imageSrc: 'https://picsum.photos/seed/aigd-summary/960/540',
     icon: LayoutPanelLeft,
     content: (
       <div className="space-y-1.5 p-2 text-[8px] sm:text-[9px]">
@@ -37,6 +40,7 @@ const previews = [
   {
     title: 'Discussion + AI',
     sub: 'Moderation layer',
+    imageSrc: 'https://picsum.photos/seed/aigd-ai/960/540',
     icon: Bot,
     content: (
       <div className="space-y-1.5 p-2 text-[8px] sm:text-[9px]">
@@ -66,7 +70,7 @@ export function ScreenshotsSection() {
           Product preview
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-slate-400 sm:text-lg">
-          Visual placeholders for the experience—stylized UI, not a live data feed.
+          Placeholder photography for layout—swap in your own product shots anytime.
         </p>
         <ul className="mt-10 grid list-none grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {previews.map((p) => {
@@ -76,9 +80,7 @@ export function ScreenshotsSection() {
                 key={p.title}
                 className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40"
               >
-                <div
-                  className="relative transition duration-500 ease-out group-hover:scale-[1.04]"
-                >
+                <div className="relative transition duration-500 ease-out group-hover:scale-[1.02]">
                   <div className="border-b border-white/5 bg-[#0a0a0b] px-3 py-1.5">
                     <div className="flex items-center gap-2 text-xs text-slate-200">
                       <I className="h-3.5 w-3.5 text-violet-300" strokeWidth={1.8} />
@@ -86,7 +88,20 @@ export function ScreenshotsSection() {
                     </div>
                     <p className="text-[10px] text-slate-500">{p.sub}</p>
                   </div>
-                  <div className="min-h-[120px] bg-slate-950/80">{p.content}</div>
+                  <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-950">
+                    <img
+                      src={p.imageSrc}
+                      alt=""
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div
+                      className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"
+                      aria-hidden
+                    />
+                  </div>
+                  <div className="min-h-[100px] border-t border-white/5 bg-slate-950/80">{p.content}</div>
                 </div>
               </li>
             );

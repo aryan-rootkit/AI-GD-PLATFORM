@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_KEY);
     setToken(null);
     setUser(null);
-    router.replace('/login');
+    router.replace('/');
   }, [router]);
 
   const value = useMemo(

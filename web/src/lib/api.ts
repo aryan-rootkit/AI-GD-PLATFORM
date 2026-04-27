@@ -1,4 +1,4 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosHeaders, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL, TOKEN_KEY } from '@/utils/constants';
 
 export const api = axios.create({
@@ -40,7 +40,12 @@ api.interceptors.request.use((config) => {
 
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      if (!config.headers) {
+        config.headers = new AxiosHeaders();
+      } else if (!(config.headers instanceof AxiosHeaders)) {
+        config.headers = AxiosHeaders.from(config.headers);
+      }
+      config.headers.set('Authorization', `Bearer ${token}`);
     }
   }
   return config;
@@ -80,8 +85,10 @@ api.interceptors.response.use(
       console.error('API ERROR:', error.response?.status, data ?? error.message);
     }
 
-    const err = new Error(msg) as Error & { code?: string };
+    const err = new Error(msg) as Error & { code?: string; status?: number };
     if (error.code) err.code = error.code;
+    const st = error.response?.status;
+    if (typeof st === 'number') err.status = st;
     return Promise.reject(err);
   },
 );
