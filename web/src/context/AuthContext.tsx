@@ -104,8 +104,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    console.log('logout triggered');
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('roomMeta');
+    }
     setToken(null);
     setUser(null);
     router.replace('/');

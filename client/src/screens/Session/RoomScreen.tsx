@@ -19,6 +19,8 @@ export type ChatMessage = {
   text: string;
   userId: string;
   at: string;
+  id?: string;
+  kind?: 'message' | 'system';
 };
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Room'>;
@@ -36,19 +38,62 @@ export function RoomScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!socket) return;
 
-    socket.emit('join_room', { sessionId });
+    const emitJoin = () => {
+      const displayName =
+        (user?.name && user.name.trim()) ||
+        (user?.email ? user.email.split('@')[0] : '') ||
+        'Member';
+      socket.emit('join_room', { sessionId, displayName });
+    };
+    emitJoin();
+    socket.on('connect', emitJoin);
 
     const onReceive = (msg: ChatMessage) => {
       if (msg.sessionId !== sessionId) return;
       setMessages((prev) => [...prev, msg]);
     };
 
+    const onUserJoined = (payload: { userId: string; name: string }) => {
+      const name = (payload.name || 'Someone').trim() || 'Someone';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sys:join:${Date.now()}`,
+          sessionId,
+          userId: '__system__',
+          kind: 'system',
+          text: `${name} joined the session`,
+          at: new Date().toISOString(),
+        },
+      ]);
+    };
+
+    const onUserLeft = (payload: { userId: string; name: string }) => {
+      const name = (payload.name || 'Someone').trim() || 'Someone';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sys:left:${Date.now()}`,
+          sessionId,
+          userId: '__system__',
+          kind: 'system',
+          text: `${name} left the session`,
+          at: new Date().toISOString(),
+        },
+      ]);
+    };
+
     socket.on('receive_message', onReceive);
+    socket.on('user_joined', onUserJoined);
+    socket.on('user_left', onUserLeft);
 
     return () => {
+      socket.off('connect', emitJoin);
       socket.off('receive_message', onReceive);
+      socket.off('user_joined', onUserJoined);
+      socket.off('user_left', onUserLeft);
     };
-  }, [socket, sessionId]);
+  }, [socket, sessionId, user?.name, user?.email]);
 
   const sendMessage = useCallback(() => {
     const text = draft.trim();
@@ -85,19 +130,25 @@ export function RoomScreen({ navigation, route }: Props) {
       <FlatList
         style={styles.listFlex}
         data={messages}
-        keyExtractor={(item, i) => `${item.at}-${i}`}
+        keyExtractor={(item, i) => item.id || `${item.at}-${i}`}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <Text style={styles.empty}>No messages yet. Say hello.</Text>
         }
-        renderItem={({ item }) => (
-          <View style={styles.bubble}>
-            <Text style={styles.bubbleMeta}>
-              {item.userId === user?.id ? 'You' : item.userId.slice(0, 8)}
-            </Text>
-            <Text style={styles.bubbleText}>{item.text}</Text>
-          </View>
-        )}
+        renderItem={({ item }) =>
+          item.kind === 'system' ? (
+            <View style={styles.systemRow}>
+              <Text style={styles.systemText}>{item.text}</Text>
+            </View>
+          ) : (
+            <View style={styles.bubble}>
+              <Text style={styles.bubbleMeta}>
+                {item.userId === user?.id ? 'You' : item.userId.slice(0, 8)}
+              </Text>
+              <Text style={styles.bubbleText}>{item.text}</Text>
+            </View>
+          )
+        }
       />
 
       <View style={styles.inputRow}>
@@ -133,6 +184,17 @@ const styles = StyleSheet.create({
   connecting: { fontSize: 12, color: '#fbbf24', marginTop: 6 },
   list: { padding: 16, paddingBottom: 8 },
   empty: { color: '#64748b', textAlign: 'center', marginTop: 24 },
+  systemRow: { alignSelf: 'center', marginBottom: 10, maxWidth: '92%' },
+  systemText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
   bubble: {
     backgroundColor: '#1e293b',
     borderRadius: 12,

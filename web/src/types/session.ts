@@ -15,4 +15,6 @@ export type ChatPayload = {
   /** Denormalized from JWT when the message was stored */
   senderEmail?: string;
   at: string;
+  /** Inline system line (join/leave); not persisted on the server */
+  kind?: 'message' | 'system';
 };

@@ -19,7 +19,7 @@ export function MessageComposer({ disabled, onSend }: Props) {
   };
 
   return (
-    <div className="flex gap-2 border-t border-slate-800 bg-slate-950/90 p-3">
+    <div className="flex gap-2 p-3 sm:p-3.5">
       <textarea
         rows={2}
         disabled={disabled}

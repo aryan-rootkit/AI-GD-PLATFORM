@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Client-side guard (JWT is in localStorage — not readable from Next middleware).
+ * Unauthenticated users go to the public home page (same destination as logout).
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { token, ready } = useAuth();
@@ -13,7 +14,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
-    if (!token) router.replace('/login');
+    if (!token) router.replace('/');
   }, [ready, token, router]);
 
   if (!ready) {

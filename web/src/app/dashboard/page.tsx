@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useHasStoredRoomMeta } from '@/hooks/useHasStoredRoomMeta';
 import type { Session } from '@/types/session';
 import { API_BASE_URL } from '@/utils/constants';
 import { MessageSquare, Plus, Users, Zap } from 'lucide-react';
@@ -42,6 +43,9 @@ function sessionActionErrorMessage(e: unknown, fallback: string): string {
   return fallback;
 }
 
+const ALREADY_IN_SESSION_HINT =
+  'You are already in a session. Open that room and use Back or End before creating another.';
+
 function Spinner() {
   return (
     <svg
@@ -64,10 +68,13 @@ function Spinner() {
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const { hasStoredRoomMeta, refreshRoomMeta } = useHasStoredRoomMeta();
   const [title, setTitle] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [busy, setBusy] = useState<'create' | 'join' | 'start' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const blockNewSession = hasStoredRoomMeta;
 
   const goSession = (s: Session) => {
     if (typeof window !== 'undefined') {
@@ -75,6 +82,7 @@ export default function DashboardPage() {
         'roomMeta',
         JSON.stringify({ title: s.title, hostId: s.hostId, sessionId: s.id }),
       );
+      refreshRoomMeta();
     }
     router.push(`/session/${s.id}`);
   };
@@ -204,11 +212,15 @@ export default function DashboardPage() {
                 <p className="mt-1 text-sm text-slate-400">
                   Creates a room, opens the Discord-style layout, and keeps real-time messages on.
                 </p>
+                {blockNewSession && (
+                  <p className="mt-2 text-xs text-amber-200/90">{ALREADY_IN_SESSION_HINT}</p>
+                )}
               </div>
               <Button
                 type="button"
                 onClick={startLiveSession}
-                disabled={busy !== null}
+                disabled={busy !== null || blockNewSession}
+                title={blockNewSession ? 'You are already in a session' : undefined}
                 className="w-full min-w-0 gap-2 px-5 py-3.5 sm:w-auto sm:shrink-0"
               >
                 {busy === 'start' ? (
@@ -233,17 +245,21 @@ export default function DashboardPage() {
                 Create session
               </h2>
               <p className="mt-1 text-sm text-slate-400">Name your room, then join as host.</p>
+              {blockNewSession && (
+                <p className="mt-2 text-xs text-amber-200/90">{ALREADY_IN_SESSION_HINT}</p>
+              )}
               <div className="mt-4 space-y-3">
                 <Input
                   label="Session title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  disabled={busy === 'create' || busy === 'start'}
+                  disabled={busy === 'create' || busy === 'start' || blockNewSession}
                 />
                 <Button
                   type="button"
                   onClick={createSession}
-                  disabled={busy !== null}
+                  disabled={busy !== null || blockNewSession}
+                  title={blockNewSession ? 'You are already in a session' : undefined}
                   className="w-full gap-2"
                 >
                   {busy === 'create' ? (

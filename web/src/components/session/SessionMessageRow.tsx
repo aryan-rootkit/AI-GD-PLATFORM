@@ -18,6 +18,25 @@ export function SessionMessageRow({
   msg: ChatPayload;
   selfId: string | undefined;
 }) {
+  if (msg.kind === 'system') {
+    const isLeave = msg.text.toLowerCase().includes('left the session');
+    const isJoin = msg.text.toLowerCase().includes('joined the session');
+    const accent = isLeave
+      ? 'border-l-rose-400/80 bg-rose-950/30 text-rose-50/95'
+      : isJoin
+        ? 'border-l-emerald-400/80 bg-emerald-950/25 text-emerald-50/95'
+        : 'border-l-slate-500/60 bg-slate-900/80 text-slate-200';
+    return (
+      <div className="flex justify-center py-1" role="status" aria-live="polite">
+        <p
+          className={`max-w-[min(100%,40rem)] rounded-lg border border-white/5 border-l-4 px-3 py-2 text-center text-xs font-medium ${accent}`}
+        >
+          {msg.text}
+        </p>
+      </div>
+    );
+  }
+
   const mine = !isAiMessage(msg) && msg.userId === selfId;
   const ai = isAiMessage(msg);
 
@@ -49,7 +68,7 @@ export function SessionMessageRow({
         className={`max-w-[min(100%,36rem)] rounded-2xl px-3.5 py-2.5 text-sm ${
           mine
             ? 'rounded-br-sm bg-violet-600 text-white'
-            : 'rounded-bl-sm border border-slate-600/50 bg-slate-800/90 text-slate-100'
+            : 'rounded-bl-sm border border-slate-600/50 bg-slate-800/90 text-slate-100 ring-1 ring-emerald-500/10'
         }`}
       >
         {!mine && <p className="mb-1 text-xs font-medium text-slate-400">{displayLabel(msg)}</p>}

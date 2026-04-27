@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Menu, MessageSquare, Sparkles, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MessageComposer } from '@/components/chat/MessageComposer';
 import { api } from '@/lib/api';
@@ -12,6 +11,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { isAiMessage } from '@/lib/messages';
 import { SessionAIPanel } from '@/components/session/SessionAIPanel';
 import { SessionLeftSidebar } from '@/components/session/SessionLeftSidebar';
+import { SessionTopBar } from '@/components/session/SessionTopBar';
 import { SessionMessageRow } from '@/components/session/SessionMessageRow';
 import type { ChatPayload, Session } from '@/types/session';
 
@@ -31,7 +31,14 @@ export function SessionClient({ sessionId }: Props) {
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [createBusy, setCreateBusy] = useState(false);
+  const [isSessionMinimized, setIsSessionMinimized] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const minimizeSession = useCallback(() => {
+    setIsSessionMinimized(true);
+    setLeftOpen(false);
+    setRightOpen(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +60,10 @@ export function SessionClient({ sessionId }: Props) {
         );
         if (!cancelled) setMessages(msgs);
       } catch {
-        if (!cancelled) router.replace('/dashboard');
+        if (!cancelled) {
+          if (typeof window !== 'undefined') sessionStorage.removeItem('roomMeta');
+          router.replace('/dashboard');
+        }
       } finally {
         if (!cancelled) setHydrating(false);
       }
@@ -65,8 +75,12 @@ export function SessionClient({ sessionId }: Props) {
 
   const emitJoin = useCallback(() => {
     if (!socket?.connected || !sessionId) return;
-    socket.emit('join_room', { sessionId });
-  }, [socket, sessionId]);
+    const displayName =
+      (user?.name && user.name.trim()) ||
+      (user?.email ? user.email.split('@')[0] : '') ||
+      'Member';
+    socket.emit('join_room', { sessionId, displayName });
+  }, [socket, sessionId, user?.name, user?.email]);
 
   useEffect(() => {
     if (!socket || !sessionId) return;
@@ -97,12 +111,62 @@ export function SessionClient({ sessionId }: Props) {
       setRoomError(payload.message || 'Room error');
     };
 
+    const onUserJoined = (payload: { userId: string; name: string }) => {
+      const name = (payload.name || 'Someone').trim() || 'Someone';
+      const line = `${name} joined the session`;
+      setMessages((prev) => {
+        const id =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `sys:join:${payload.userId}:${Date.now()}`;
+        if (prev.some((p) => p.id === id)) return prev;
+        return [
+          ...prev,
+          {
+            id,
+            sessionId,
+            userId: '__system__',
+            kind: 'system' as const,
+            text: line,
+            at: new Date().toISOString(),
+          },
+        ];
+      });
+    };
+
+    const onUserLeft = (payload: { userId: string; name: string }) => {
+      const name = (payload.name || 'Someone').trim() || 'Someone';
+      const line = `${name} left the session`;
+      setMessages((prev) => {
+        const id =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `sys:left:${payload.userId}:${Date.now()}`;
+        if (prev.some((p) => p.id === id)) return prev;
+        return [
+          ...prev,
+          {
+            id,
+            sessionId,
+            userId: '__system__',
+            kind: 'system' as const,
+            text: line,
+            at: new Date().toISOString(),
+          },
+        ];
+      });
+    };
+
     socket.on('receive_message', onReceive);
     socket.on('room_error', onRoomError);
+    socket.on('user_joined', onUserJoined);
+    socket.on('user_left', onUserLeft);
     return () => {
       socket.off('connect', emitJoin);
       socket.off('receive_message', onReceive);
       socket.off('room_error', onRoomError);
+      socket.off('user_joined', onUserJoined);
+      socket.off('user_left', onUserLeft);
     };
   }, [socket, sessionId, emitJoin]);
 
@@ -156,6 +220,8 @@ export function SessionClient({ sessionId }: Props) {
     }));
   }, [session?.participants, user]);
 
+  const participantCount = participants.length;
+
   const endSession = async () => {
     if (!isHost) return;
     setEnding(true);
@@ -199,65 +265,52 @@ export function SessionClient({ sessionId }: Props) {
   }, [router]);
 
   return (
-    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-200">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-white/5 bg-[#0c0c0e] px-2 sm:px-0 lg:hidden">
-        <button
-          type="button"
-          onClick={() => {
-            setLeftOpen((v) => !v);
-            setRightOpen(false);
-          }}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/5"
-          aria-label="Open rooms and participants"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-        <span className="line-clamp-1 min-w-0 text-center text-sm font-medium text-slate-100">
-          {title}
-        </span>
-        <div className="flex gap-0.5">
-          <Link
-            href="/dashboard"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-400 hover:bg-white/5"
-            title="Home"
-            aria-label="Home"
-          >
-            <MessageSquare className="h-5 w-5" />
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
-              setRightOpen((v) => !v);
-              setLeftOpen(false);
-            }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/5"
-            aria-label="Open AI copilot"
-          >
-            <Sparkles className="h-5 w-5" />
-          </button>
-        </div>
-      </header>
+    <>
+    <div
+      className={`flex h-[100dvh] max-h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-200 ${
+        isSessionMinimized ? 'hidden' : ''
+      }`}
+      aria-hidden={isSessionMinimized}
+    >
+      <SessionTopBar
+        title={title}
+        sessionId={sessionId}
+        participantCount={participantCount}
+        isHost={isHost}
+        ending={ending}
+        onOpenParticipants={() => {
+          setLeftOpen(true);
+          setRightOpen(false);
+        }}
+        onOpenAi={() => {
+          setRightOpen(true);
+          setLeftOpen(false);
+        }}
+        onMinimize={minimizeSession}
+        onLogout={logout}
+        onEndSession={endSession}
+      />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[14rem_1fr_20rem]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 lg:grid-cols-[15rem_minmax(0,1fr)_18rem]">
         <aside
           className={[
             'z-30 min-h-0 min-w-0 border-r border-white/5 lg:col-start-1 lg:row-start-1 lg:block',
             leftOpen
-              ? 'fixed inset-0 top-12 z-40 w-[min(20rem,100%)] sm:top-0 lg:static'
+              ? 'fixed inset-0 z-40 w-[min(18rem,100%)] lg:static'
               : 'hidden lg:block',
           ].join(' ')}
         >
           {leftOpen && (
             <div
-              className="fixed inset-0 top-12 z-20 bg-black/50 lg:hidden"
+              className="fixed inset-0 z-20 bg-black/50 lg:hidden"
               aria-hidden
               onClick={() => setLeftOpen(false)}
             />
           )}
           <div
             className={[
-              'relative z-30 h-full min-h-0',
-              leftOpen && 'h-[calc(100dvh-3rem)]',
+              'relative z-30 flex h-full min-h-0 flex-col',
+              leftOpen && 'h-[100dvh] lg:h-full',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -273,36 +326,16 @@ export function SessionClient({ sessionId }: Props) {
             </Button>
             <SessionLeftSidebar
               currentSessionId={sessionId}
-              title={title}
               participants={participants}
+              participantCount={participantCount}
               onCreateSession={onCreateFromSidebar}
               createBusy={createBusy}
+              createSessionDisabledReason="You are already in a session"
             />
           </div>
         </aside>
 
         <main className="flex min-h-0 min-w-0 flex-col border-white/5 lg:col-start-2 lg:row-start-1 lg:border-x">
-          <div className="hidden shrink-0 border-b border-white/5 bg-[#0c0c0e] px-4 py-2.5 sm:flex sm:items-center sm:justify-between sm:pl-3">
-            <div>
-              <h1 className="line-clamp-1 text-sm font-semibold text-white sm:text-base">
-                {title}
-              </h1>
-              <p className="line-clamp-1 text-xs text-slate-500">#{sessionId}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {isHost && (
-                <Button variant="danger" type="button" onClick={endSession} disabled={ending} className="text-xs sm:text-sm">
-                  {ending ? 'Ending…' : 'End'}
-                </Button>
-              )}
-              <Button variant="secondary" type="button" onClick={() => router.push('/dashboard')}>
-                Back
-              </Button>
-              <Button variant="secondary" type="button" onClick={() => logout()}>
-                Sign out
-              </Button>
-            </div>
-          </div>
           {hydrating && (
             <p className="shrink-0 border-b border-amber-900/40 bg-amber-950/30 px-3 py-1.5 text-center text-xs text-amber-100/90">
               Loading room…
@@ -326,7 +359,7 @@ export function SessionClient({ sessionId }: Props) {
 
           <div
             ref={listRef}
-            className="min-h-0 flex-1 space-y-1 overflow-y-auto scroll-smooth px-3 py-2 sm:px-4"
+            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden scroll-smooth px-3 py-2 sm:px-4"
           >
             {!hydrating && messages.length === 0 && (
               <p className="py-8 text-center text-sm text-slate-500">
@@ -361,23 +394,22 @@ export function SessionClient({ sessionId }: Props) {
               </div>
             )}
           </div>
-          <MessageComposer
-            disabled={!socket?.connected || hydrating}
-            onSend={sendMessage}
-          />
+          <div className="shrink-0 border-t border-white/5 bg-[#0a0a0b]/95 backdrop-blur-sm">
+            <MessageComposer disabled={!socket?.connected || hydrating} onSend={sendMessage} />
+          </div>
         </main>
 
         <aside
           className={[
             'z-30 min-h-0 min-w-0 border-l border-white/5 bg-[#0c0c0e] lg:col-start-3',
             rightOpen
-              ? 'fixed inset-0 top-12 z-40 w-full sm:top-0 lg:static'
+              ? 'fixed inset-0 z-40 w-full lg:static'
               : 'hidden lg:col-start-3 lg:row-start-1 lg:block',
           ].join(' ')}
         >
           {rightOpen && (
             <div
-              className="fixed inset-0 top-12 z-20 bg-black/50 lg:hidden"
+              className="fixed inset-0 z-20 bg-black/50 lg:hidden"
               aria-hidden
               onClick={() => setRightOpen(false)}
             />
@@ -385,7 +417,7 @@ export function SessionClient({ sessionId }: Props) {
           <div
             className={[
               'relative z-30 flex h-full min-h-0 flex-col',
-              rightOpen && 'h-[calc(100dvh-3rem)]',
+              rightOpen && 'h-[100dvh] lg:h-full',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -408,5 +440,22 @@ export function SessionClient({ sessionId }: Props) {
         </aside>
       </div>
     </div>
+
+    {isSessionMinimized && (
+      <div
+        className="fixed inset-x-0 bottom-0 z-[100] flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
+        role="status"
+        aria-live="polite"
+      >
+        <button
+          type="button"
+          onClick={() => setIsSessionMinimized(false)}
+          className="w-full max-w-md rounded-2xl border border-violet-500/40 bg-slate-900/95 px-5 py-3.5 text-center text-sm font-medium text-violet-100 shadow-lg shadow-black/40 backdrop-blur-sm transition hover:border-violet-400/60 hover:bg-slate-900"
+        >
+          Session active – Tap to return
+        </button>
+      </div>
+    )}
+    </>
   );
 }

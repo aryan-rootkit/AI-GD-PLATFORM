@@ -30,6 +30,19 @@ function getIo() {
 }
 
 /**
+ * @param {{ email?: string }} user
+ * @param {object | null | undefined} payload
+ */
+function pickDisplayName(user, payload) {
+  const fromClient =
+    payload && typeof payload.displayName === 'string' ? payload.displayName.trim() : '';
+  if (fromClient) return fromClient.slice(0, 80);
+  const email = user?.email || '';
+  const local = email.split('@')[0];
+  return local || 'Member';
+}
+
+/**
  * JWT required on connect (auth.token from client, or query.token).
  * join_room / send_message require active session membership.
  * Messages are persisted then broadcast with stable id for dedup.
@@ -65,6 +78,23 @@ function attachSocket(httpServer) {
   });
 
   io.on('connection', (socket) => {
+    if (!socket.data.trackedSessions) {
+      socket.data.trackedSessions = new Set();
+    }
+
+    socket.on('disconnect', () => {
+      const tracked = socket.data.trackedSessions;
+      if (!tracked || tracked.size === 0 || !socket.user) return;
+      const name = pickDisplayName(socket.user, null);
+      const { id: userId } = socket.user;
+      const roomCount = tracked.size;
+      for (const sid of tracked) {
+        socket.to(String(sid)).emit('user_left', { userId, name });
+      }
+      tracked.clear();
+      logger.info('Socket disconnected', { userId, roomsNotified: roomCount });
+    });
+
     socket.on('join_room', async (payload) => {
       const rawId = payload && typeof payload === 'object' ? payload.sessionId : null;
       const sessionId = rawId != null ? String(rawId).trim() : '';
@@ -78,7 +108,17 @@ function attachSocket(httpServer) {
       }
       try {
         await sessionService.assertActiveParticipant(sessionId, socket.user.id);
+        const tracked = socket.data.trackedSessions;
+        const alreadyAnnounced = tracked.has(sessionId);
         await socket.join(String(sessionId));
+        if (!alreadyAnnounced) {
+          tracked.add(sessionId);
+          const name = pickDisplayName(socket.user, payload);
+          io.to(String(sessionId)).emit('user_joined', {
+            userId: socket.user.id,
+            name,
+          });
+        }
         logger.info('Socket room joined', { sessionId: String(sessionId), userId: socket.user.id });
       } catch (err) {
         socket.emit('room_error', {
