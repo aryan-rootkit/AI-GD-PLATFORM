@@ -50,13 +50,14 @@ api.interceptors.response.use(
   (res) => {
     const body = res.data as unknown;
     if (
-      body &&
       typeof body === 'object' &&
+      body !== null &&
       'success' in body &&
-      (body as { success?: boolean }).success === true &&
-      Object.prototype.hasOwnProperty.call(body, 'data')
+      'data' in body &&
+      (body as { success?: boolean }).success === true
     ) {
-      return { ...res, data: (body as { data: typeof res.data }).data };
+      const typedBody = body as { data: unknown };
+      return { ...res, data: typedBody.data };
     }
     return res;
   },
