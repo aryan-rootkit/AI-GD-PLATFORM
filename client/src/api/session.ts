@@ -19,7 +19,12 @@ export async function apiJoinSession(sessionId: string) {
   return data;
 }
 
+export type SessionEndPayload = {
+  status: string;
+  evaluation: { score: number; feedback: string };
+};
+
 export async function apiEndSession(sessionId: string) {
-  const { data } = await api.post<Session>(`/api/session/end/${sessionId}`);
+  const { data } = await api.post<SessionEndPayload>(`/api/session/end/${sessionId}`);
   return data;
 }

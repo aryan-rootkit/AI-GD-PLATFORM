@@ -1,9 +1,10 @@
 const authService = require('../services/auth.service');
+const { sendSuccess } = require('../utils/apiResponse');
 
 async function signup(req, res, next) {
   try {
     const result = await authService.signup(req.body);
-    res.status(201).json(result);
+    sendSuccess(res, result, { message: 'Account created', status: 201 });
   } catch (err) {
     next(err);
   }
@@ -12,7 +13,7 @@ async function signup(req, res, next) {
 async function login(req, res, next) {
   try {
     const result = await authService.login(req.body);
-    res.json(result);
+    sendSuccess(res, result, { message: 'Signed in', status: 200 });
   } catch (err) {
     next(err);
   }

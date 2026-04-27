@@ -1,4 +1,5 @@
 const sessionService = require('../services/session.service');
+const { sendSuccess } = require('../utils/apiResponse');
 
 async function create(req, res, next) {
   try {
@@ -6,15 +7,8 @@ async function create(req, res, next) {
       title: req.body.title,
       hostId: req.user.id,
     });
-    res.status(201).json(session);
+    sendSuccess(res, session, { message: 'Session created', status: 201 });
   } catch (err) {
-    console.error('[session] create failed:', err);
-    if (!res.headersSent) {
-      const status = err.status || 500;
-      const message = err.message || 'Failed to create session';
-      res.status(status).json({ error: message });
-      return;
-    }
     next(err);
   }
 }
@@ -25,7 +19,7 @@ async function join(req, res, next) {
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
-    res.json(session);
+    sendSuccess(res, session, { message: 'Joined session', status: 200 });
   } catch (err) {
     next(err);
   }
@@ -37,7 +31,17 @@ async function end(req, res, next) {
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
-    res.json(session);
+    sendSuccess(
+      res,
+      {
+        status: session.status,
+        evaluation: {
+          score: session.evaluation.score,
+          feedback: session.evaluation.feedback,
+        },
+      },
+      { message: 'Session ended', status: 200 },
+    );
   } catch (err) {
     next(err);
   }
@@ -49,7 +53,7 @@ async function getOne(req, res, next) {
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
-    res.json(session);
+    sendSuccess(res, session, { message: 'OK', status: 200 });
   } catch (err) {
     next(err);
   }
@@ -61,7 +65,7 @@ async function listMessages(req, res, next) {
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
-    res.json(messages);
+    sendSuccess(res, messages, { message: 'OK', status: 200 });
   } catch (err) {
     next(err);
   }

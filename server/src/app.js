@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
 const { corsOriginHandler } = require('./config/corsOrigins');
+const { errorMiddleware } = require('./middleware/error.middleware');
 
 const app = express();
 
@@ -20,5 +21,6 @@ app.get('/test-db', async (_req, res) => {
 });
 
 app.use('/api', routes);
+app.use(errorMiddleware);
 
 module.exports = app;

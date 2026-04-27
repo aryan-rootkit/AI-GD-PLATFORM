@@ -66,39 +66,64 @@ function attachSocket(httpServer) {
 
   io.on('connection', (socket) => {
     socket.on('join_room', async (payload) => {
-      const sessionId = payload && typeof payload === 'object' ? payload.sessionId : null;
-      if (!sessionId) return;
+      const rawId = payload && typeof payload === 'object' ? payload.sessionId : null;
+      const sessionId = rawId != null ? String(rawId).trim() : '';
+      if (!sessionId) {
+        socket.emit('room_error', {
+          sessionId: '',
+          message: 'sessionId is required',
+          status: 400,
+        });
+        return;
+      }
       try {
         await sessionService.assertActiveParticipant(sessionId, socket.user.id);
         await socket.join(String(sessionId));
+        logger.info('Socket room joined', { sessionId: String(sessionId), userId: socket.user.id });
       } catch (err) {
         socket.emit('room_error', {
           sessionId: String(sessionId),
-          message: err.message,
+          message: err.message || 'Could not join room',
           status: err.status || 400,
         });
       }
     });
 
     socket.on('send_message', async (payload) => {
-      const sessionId = payload?.sessionId;
+      const sessionId = payload?.sessionId != null ? String(payload.sessionId).trim() : '';
       const text = payload?.text;
-      if (!sessionId || text == null) return;
+      if (!sessionId || text == null) {
+        socket.emit('room_error', {
+          sessionId: sessionId || '',
+          message: 'sessionId and text are required',
+          status: 400,
+        });
+        return;
+      }
+      const trimmed = String(text).trim();
+      if (!trimmed) {
+        socket.emit('room_error', {
+          sessionId: String(sessionId),
+          message: 'Message text cannot be empty',
+          status: 400,
+        });
+        return;
+      }
       try {
         const saved = await sessionService.appendSessionMessage({
           sessionId,
           userId: socket.user.id,
           senderEmail: socket.user.email,
-          text: String(text),
+          text: trimmed,
         });
         io.to(String(sessionId)).emit('receive_message', saved);
-        if (String(text).length > 20) {
-          runAiModeration(io, String(sessionId), String(text));
+        if (trimmed.length > 20) {
+          runAiModeration(io, String(sessionId), trimmed);
         }
       } catch (err) {
         socket.emit('room_error', {
           sessionId: String(sessionId),
-          message: err.message,
+          message: err.message || 'Could not send message',
           status: err.status || 400,
         });
       }

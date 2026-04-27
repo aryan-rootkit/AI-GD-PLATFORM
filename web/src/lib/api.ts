@@ -47,13 +47,30 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (res) => res,
-  (error: AxiosError<{ error?: string; message?: string }>) => {
+  (res) => {
+    const body = res.data as unknown;
+    if (
+      body &&
+      typeof body === 'object' &&
+      'success' in body &&
+      (body as { success?: boolean }).success === true &&
+      Object.prototype.hasOwnProperty.call(body, 'data')
+    ) {
+      return { ...res, data: (body as { data: typeof res.data }).data };
+    }
+    return res;
+  },
+  (error: AxiosError<{ error?: string; message?: string; success?: boolean }>) => {
     const data = error.response?.data;
     let msg = 'Something went wrong';
     if (data && typeof data === 'object') {
-      if (typeof data.error === 'string' && data.error) msg = data.error;
-      else if (typeof data.message === 'string' && data.message) msg = data.message;
+      if (data.success === false && typeof data.message === 'string' && data.message) {
+        msg = data.message;
+      } else if (typeof data.error === 'string' && data.error) {
+        msg = data.error;
+      } else if (typeof data.message === 'string' && data.message) {
+        msg = data.message;
+      }
     } else if (error.message) {
       msg = error.message;
     }

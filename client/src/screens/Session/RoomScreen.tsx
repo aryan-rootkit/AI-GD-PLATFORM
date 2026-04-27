@@ -61,16 +61,14 @@ export function RoomScreen({ navigation, route }: Props) {
     if (!isHost) return;
     setEnding(true);
     try {
-      await apiEndSession(sessionId);
-      Alert.alert('Session ended', '', [
+      const result = await apiEndSession(sessionId);
+      const body = `Score: ${result.evaluation.score}\n${result.evaluation.feedback}`;
+      Alert.alert('Session ended', body, [
         { text: 'OK', onPress: () => navigation.navigate('Dashboard') },
       ]);
     } catch (e: unknown) {
-      const msg =
-        e && typeof e === 'object' && 'response' in e
-          ? String((e as { response?: { data?: { error?: string } } }).response?.data?.error)
-          : 'Could not end session';
-      Alert.alert('Error', msg || 'Could not end session');
+      const msg = e instanceof Error ? e.message : 'Could not end session';
+      Alert.alert('Error', msg);
     } finally {
       setEnding(false);
     }
