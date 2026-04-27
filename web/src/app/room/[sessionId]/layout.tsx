@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { AuthGuard } from '@/components/layout/AuthGuard';
 
+/** Room URL redirects to `/session/[id]`; no client shell here. */
 export default function RoomLayout({ children }: { children: ReactNode }) {
-  return <AuthGuard>{children}</AuthGuard>;
+  return children;
 }

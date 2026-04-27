@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { TOKEN_KEY, USER_KEY } from '@/utils/constants';
+import { ONBOARDING_KEY, TOKEN_KEY, USER_KEY } from '@/utils/constants';
 
 export type AuthUser = { id: string; email: string; name?: string };
 
@@ -20,6 +20,7 @@ type AuthContextValue = {
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
+  completeOnboarding: (displayName: string) => void;
   logout: () => void;
 };
 
@@ -50,6 +51,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setReady(true);
   }, []);
 
+  const postLoginPath = useCallback(() => {
+    if (typeof window === 'undefined') return '/dashboard';
+    if (!localStorage.getItem(ONBOARDING_KEY)) {
+      return '/onboarding';
+    }
+    return '/dashboard';
+  }, []);
+
   const login = useCallback(
     async (email: string, password: string) => {
       const { data } = await api.post<{ token: string; user: AuthUser }>('/api/auth/login', {
@@ -60,15 +69,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-      router.replace('/dashboard');
+      router.replace(postLoginPath());
     },
-    [router],
+    [router, postLoginPath],
   );
 
   const signup = useCallback(
     async (name: string, email: string, password: string) => {
       await api.post<{ user: AuthUser }>('/api/auth/signup', { name, email, password });
       router.replace('/login');
+    },
+    [router],
+  );
+
+  const completeOnboarding = useCallback(
+    (displayName: string) => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      const name = displayName.trim();
+      setUser((prev) => {
+        if (!prev) return prev;
+        if (name) {
+          const next: AuthUser = { ...prev, name };
+          localStorage.setItem(USER_KEY, JSON.stringify(next));
+          return next;
+        }
+        return prev;
+      });
+      localStorage.setItem(ONBOARDING_KEY, '1');
+      router.replace('/dashboard');
     },
     [router],
   );
@@ -82,8 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const value = useMemo(
-    () => ({ user, token, ready, login, signup, logout }),
-    [user, token, ready, login, signup, logout],
+    () => ({ user, token, ready, login, signup, completeOnboarding, logout }),
+    [user, token, ready, login, signup, completeOnboarding, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

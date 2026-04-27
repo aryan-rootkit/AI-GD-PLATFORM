@@ -12,3 +12,5 @@ export const SOCKET_BASE_URL =
 
 export const TOKEN_KEY = 'aigd_token';
 export const USER_KEY = 'aigd_user';
+/** Set on first "Continue" in `/onboarding` (local; controls post-login route). */
+export const ONBOARDING_KEY = 'aigd_onboarded';

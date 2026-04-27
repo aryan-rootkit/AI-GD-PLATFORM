@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import type { Session } from '@/types/session';
 import { API_BASE_URL } from '@/utils/constants';
+import { MessageSquare, Plus, Users, Zap } from 'lucide-react';
 
 function isTimeoutError(e: unknown): boolean {
   if (e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'ECONNABORTED') {
@@ -45,17 +46,30 @@ export default function DashboardPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [sessionId, setSessionId] = useState('');
-  const [busy, setBusy] = useState<'create' | 'join' | null>(null);
+  const [busy, setBusy] = useState<'create' | 'join' | 'start' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const goRoom = (s: Session) => {
+  const goSession = (s: Session) => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem(
         'roomMeta',
         JSON.stringify({ title: s.title, hostId: s.hostId, sessionId: s.id }),
       );
     }
-    router.push(`/room/${s.id}`);
+    router.push(`/session/${s.id}`);
+  };
+
+  const startLiveSession = async () => {
+    setError(null);
+    setBusy('start');
+    try {
+      const { data } = await api.post<Session>('/api/session/create', { title: 'New Session' });
+      if (data?.id) goSession(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start session');
+    } finally {
+      setBusy(null);
+    }
   };
 
   const createSession = async () => {
@@ -65,37 +79,24 @@ export default function DashboardPage() {
       return;
     }
     setBusy('create');
-
-    const attemptCreate = async (isRetry: boolean) => {
-      console.log(isRetry ? 'Retrying session creation…' : 'Creating session…');
+    const attempt = async () => {
       const { data } = await api.post<Session>('/api/session/create', { title: title.trim() });
-      console.log('Response:', data);
       return data;
     };
-
     try {
       try {
-        const data = await attemptCreate(false);
-        goRoom(data);
+        const data = await attempt();
+        goSession(data);
       } catch (first) {
         if (isTimeoutError(first)) {
-          console.log('Session create timed out; retrying once…');
-          try {
-            const data = await attemptCreate(true);
-            goRoom(data);
-          } catch (retryErr) {
-            throw retryErr;
-          }
+          const data = await attempt();
+          goSession(data);
         } else {
           throw first;
         }
       }
     } catch (e) {
-      if (isTimeoutError(e)) {
-        setError('Server is taking too long. Please try again.');
-      } else {
-        setError('Failed to create session');
-      }
+      setError(isTimeoutError(e) ? 'Server is taking too long. Please try again.' : 'Failed to create session');
     } finally {
       setBusy(null);
     }
@@ -109,37 +110,23 @@ export default function DashboardPage() {
       return;
     }
     setBusy('join');
-
-    const attemptJoin = async (isRetry: boolean) => {
-      console.log(isRetry ? 'Retrying session join…' : 'Joining session…');
+    const attempt = async () => {
       const { data } = await api.post<Session>(`/api/session/join/${id}`);
-      console.log('Response:', data);
       return data;
     };
-
     try {
       try {
-        const data = await attemptJoin(false);
-        goRoom(data);
+        const data = await attempt();
+        goSession(data);
       } catch (first) {
         if (isTimeoutError(first)) {
-          console.log('Session join timed out; retrying once…');
-          try {
-            const data = await attemptJoin(true);
-            goRoom(data);
-          } catch (retryErr) {
-            throw retryErr;
-          }
+          goSession(await attempt());
         } else {
           throw first;
         }
       }
     } catch (e) {
-      if (isTimeoutError(e)) {
-        setError('Server is taking too long. Please try again.');
-      } else {
-        setError('Failed to join session');
-      }
+      setError(isTimeoutError(e) ? 'Server is taking too long. Please try again.' : 'Failed to join session');
     } finally {
       setBusy(null);
     }
@@ -150,7 +137,9 @@ export default function DashboardPage() {
       title="Dashboard"
       right={
         <div className="flex items-center gap-3 text-sm">
-          <span className="hidden text-slate-400 sm:inline">{user?.email}</span>
+          <span className="hidden max-w-[12rem] truncate text-slate-400 sm:inline">
+            {user?.name || user?.email}
+          </span>
           <Button variant="secondary" type="button" onClick={() => logout()}>
             Sign out
           </Button>
@@ -159,76 +148,137 @@ export default function DashboardPage() {
     >
       {!API_BASE_URL && (
         <p className="mb-6 rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-100">
-          Set <code className="font-mono">NEXT_PUBLIC_API_URL</code> in <code className="font-mono">.env.local</code>.
+          Set <code className="font-mono">NEXT_PUBLIC_API_URL</code> in <code className="font-mono">.env.local</code>{' '}
+          and restart the dev server.
         </p>
       )}
 
-      <div className="grid gap-8 md:grid-cols-2">
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-          <h2 className="text-lg font-semibold text-white">Create session</h2>
-          <p className="mt-1 text-sm text-slate-400">Start a new discussion room as host.</p>
-          <div className="mt-4 space-y-4">
-            <Input
-              label="Session title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={busy === 'create'}
-            />
-            <Button
-              type="button"
-              onClick={createSession}
-              disabled={busy !== null}
-              className="w-full gap-2"
-            >
-              {busy === 'create' ? (
-                <>
-                  <Spinner />
-                  Creating…
-                </>
-              ) : (
-                'Create & enter room'
-              )}
-            </Button>
+      <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[10rem_1fr]">
+        <aside className="hidden flex-col gap-1 rounded-2xl border border-slate-800/80 bg-slate-900/40 p-2 sm:flex sm:p-3">
+          <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Navigate</p>
+          <div className="rounded-lg bg-slate-800/60 p-2 text-slate-200">
+            <MessageSquare className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+            <p className="mt-1 text-xs font-medium">Discussions</p>
           </div>
-        </section>
+          <div className="mt-1 rounded-lg p-2 text-slate-500">
+            <Users className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+            <p className="mt-1 text-xs">Cohort (soon)</p>
+          </div>
+        </aside>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-          <h2 className="text-lg font-semibold text-white">Join session</h2>
-          <p className="mt-1 text-sm text-slate-400">Paste the session ID from your host.</p>
-          <div className="mt-4 space-y-4">
-            <Input
-              label="Session ID"
-              value={sessionId}
-              onChange={(e) => setSessionId(e.target.value)}
-              placeholder="e.g. Mongo ObjectId / UUID"
-              disabled={busy === 'join'}
+        <div className="min-w-0 space-y-6">
+          <section
+            className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-950/40 to-slate-900/50 p-6 sm:p-8"
+            aria-label="Start live"
+          >
+            <div
+              className="pointer-events-none absolute -right-4 top-0 h-32 w-32 rounded-full bg-violet-600/20 blur-2xl"
+              aria-hidden
             />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={joinSession}
-              disabled={busy !== null}
-              className="w-full gap-2"
-            >
-              {busy === 'join' ? (
-                <>
-                  <Spinner />
-                  Joining…
-                </>
-              ) : (
-                'Join room'
-              )}
-            </Button>
+            <div className="relative z-[1] flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-violet-300/90">
+                  Live room
+                </p>
+                <h2 className="mt-1 text-xl font-bold text-white sm:text-2xl">Start a live session</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Creates a room, opens the Discord-style layout, and keeps real-time messages on.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={startLiveSession}
+                disabled={busy !== null}
+                className="w-full min-w-0 gap-2 px-5 py-3.5 sm:w-auto sm:shrink-0"
+              >
+                {busy === 'start' ? (
+                  <>
+                    <Spinner />
+                    Starting…
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" strokeWidth={2.5} />
+                    Start live session
+                  </>
+                )}
+              </Button>
+            </div>
+          </section>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <section className="rounded-2xl border border-slate-800/90 bg-slate-900/40 p-5 sm:p-6">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                <Plus className="h-5 w-5 text-violet-400" strokeWidth={2} aria-hidden />
+                Create session
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">Name your room, then join as host.</p>
+              <div className="mt-4 space-y-3">
+                <Input
+                  label="Session title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={busy === 'create' || busy === 'start'}
+                />
+                <Button
+                  type="button"
+                  onClick={createSession}
+                  disabled={busy !== null}
+                  className="w-full gap-2"
+                >
+                  {busy === 'create' ? (
+                    <>
+                      <Spinner />
+                      Creating…
+                    </>
+                  ) : (
+                    'Create & open room'
+                  )}
+                </Button>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-800/90 bg-slate-900/40 p-5 sm:p-6">
+              <h2 className="text-lg font-semibold text-white">Join session</h2>
+              <p className="mt-1 text-sm text-slate-400">Paste a session id from the host.</p>
+              <div className="mt-4 space-y-3">
+                <Input
+                  label="Session ID"
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  disabled={busy === 'join' || busy === 'start'}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={joinSession}
+                  disabled={busy !== null}
+                  className="w-full gap-2"
+                >
+                  {busy === 'join' ? (
+                    <>
+                      <Spinner />
+                      Joining…
+                    </>
+                  ) : (
+                    'Join room'
+                  )}
+                </Button>
+              </div>
+            </section>
           </div>
-        </section>
+        </div>
       </div>
 
       {error && (
-        <p className="mt-6 rounded-lg bg-rose-950/50 px-4 py-3 text-sm text-rose-100">{error}</p>
+        <p className="mt-4 rounded-lg bg-rose-950/50 px-4 py-3 text-sm text-rose-100">{error}</p>
       )}
 
-      <p className="mt-10 text-center text-xs text-slate-500">
-        Need an account? <Link href="/signup" className="text-violet-400 hover:underline">Sign up</Link>
+      <p className="mt-8 text-center text-xs text-slate-500">
+        Need an account?{' '}
+        <Link href="/signup" className="text-violet-400 hover:underline">
+          Sign up
+        </Link>
       </p>
     </AppShell>
   );
