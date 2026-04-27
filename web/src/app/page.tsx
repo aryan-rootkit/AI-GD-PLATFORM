@@ -1,35 +1,45 @@
 import type { Metadata } from 'next';
-import { SiteHeader } from '@/components/landing/SiteHeader';
-import { HeroSection } from '@/components/landing/HeroSection';
-import { FeaturesSection } from '@/components/landing/FeaturesSection';
-import { DemoSection } from '@/components/landing/DemoSection';
-import { HowItWorksSection } from '@/components/landing/HowItWorksSection';
-import { AnimatedChatDemo } from '@/components/landing/AnimatedChatDemo';
-import { SiteFooter } from '@/components/landing/SiteFooter';
+import { MarketingHeader } from '@/components/marketing/MarketingHeader';
+import { MarketingHeroSection } from '@/components/marketing/HeroSection';
+import { SocialProofBar } from '@/components/marketing/SocialProofBar';
+import { ProblemSection } from '@/components/marketing/ProblemSection';
+import { FeatureGridSection } from '@/components/marketing/FeatureGridSection';
+import { HowItWorksSection } from '@/components/marketing/HowItWorksSection';
+import { ScreenshotsSection } from '@/components/marketing/ScreenshotsSection';
+import { UseCasesSection } from '@/components/marketing/UseCasesSection';
+import { TestimonialsSection } from '@/components/marketing/TestimonialsSection';
+import { PricingSection } from '@/components/marketing/PricingSection';
+import { FinalCtaSection } from '@/components/marketing/FinalCtaSection';
+import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 
 export const metadata: Metadata = {
-  title: 'AI GD Platform | Practice group discussions with AI',
+  title: 'AI GD Platform | AI-powered group discussions',
   description:
-    'Run live multi-user rooms with an AI moderator, structured feedback, and a polished session experience—built for teams and serious practice.',
+    'Run live discussions, debates, and team sessions with AI summaries, insights, and decisions. Sign in to use the app.',
   openGraph: {
     title: 'AI GD Platform',
     description:
-      'Practice group discussions with AI-powered feedback, live rooms, and performance insight.',
+      'Structured real-time collaboration for teams, cohorts, and serious practice.',
   },
 };
 
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col">
-      <SiteHeader />
+      <MarketingHeader />
       <main className="flex-1">
-        <HeroSection />
-        <FeaturesSection />
-        <DemoSection />
+        <MarketingHeroSection />
+        <SocialProofBar />
+        <ProblemSection />
+        <FeatureGridSection />
         <HowItWorksSection />
-        <AnimatedChatDemo />
+        <ScreenshotsSection />
+        <UseCasesSection />
+        <TestimonialsSection />
+        <PricingSection />
+        <FinalCtaSection />
       </main>
-      <SiteFooter />
+      <MarketingFooter />
     </div>
   );
 }
