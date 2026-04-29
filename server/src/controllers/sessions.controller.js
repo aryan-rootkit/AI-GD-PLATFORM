@@ -4,7 +4,7 @@ const { sendSuccess } = require('../utils/apiResponse');
 async function history(req, res, next) {
   try {
     const items = await sessionService.listHistoryForUser({ userId: req.user.id });
-    sendSuccess(res, items, { message: 'OK', status: 200 });
+    sendSuccess(res, items);
   } catch (err) {
     next(err);
   }

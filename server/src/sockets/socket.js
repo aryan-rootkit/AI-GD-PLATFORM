@@ -88,10 +88,24 @@ function attachSocket(httpServer) {
       const name = pickDisplayName(socket.user, null);
       const { id: userId } = socket.user;
       const roomCount = tracked.size;
-      for (const sid of tracked) {
-        socket.to(String(sid)).emit('user_left', { userId, name });
-      }
+      const sids = [...tracked];
       tracked.clear();
+      (async () => {
+        for (const sid of sids) {
+          socket.to(String(sid)).emit('user_left', { userId, name });
+          try {
+            const saved = await sessionService.appendSystemMessage({
+              sessionId: sid,
+              content: `${name} left the session`,
+            });
+            if (saved) {
+              io.to(String(sid)).emit('receive_message', saved);
+            }
+          } catch (err) {
+            logger.warn('persist disconnect message failed', err?.message || err);
+          }
+        }
+      })();
       logger.info('Socket disconnected', { userId, roomsNotified: roomCount });
     });
 
@@ -118,6 +132,17 @@ function attachSocket(httpServer) {
             userId: socket.user.id,
             name,
           });
+          try {
+            const saved = await sessionService.appendSystemMessage({
+              sessionId,
+              content: `${name} joined the session`,
+            });
+            if (saved) {
+              io.to(String(sessionId)).emit('receive_message', saved);
+            }
+          } catch (err) {
+            logger.warn('persist join message failed', err?.message || err);
+          }
         }
         logger.info('Socket room joined', { sessionId: String(sessionId), userId: socket.user.id });
       } catch (err) {

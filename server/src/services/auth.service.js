@@ -3,6 +3,7 @@ const userModel = require('../models/user.model');
 const { signToken } = require('../utils/jwt');
 
 const SALT_ROUNDS = 10;
+const MAX_PASSWORD_LENGTH = 128;
 
 function validateSignup({ name, email, password }) {
   if (!name || typeof name !== 'string') {
@@ -17,6 +18,11 @@ function validateSignup({ name, email, password }) {
   }
   if (!password || String(password).length < 6) {
     const e = new Error('password must be at least 6 characters');
+    e.status = 400;
+    throw e;
+  }
+  if (String(password).length > MAX_PASSWORD_LENGTH) {
+    const e = new Error(`password must be at most ${MAX_PASSWORD_LENGTH} characters`);
     e.status = 400;
     throw e;
   }
@@ -43,6 +49,11 @@ async function signup({ name, email, password }) {
 async function login({ email, password }) {
   if (!email || !password) {
     const e = new Error('email and password are required');
+    e.status = 400;
+    throw e;
+  }
+  if (String(password).length > MAX_PASSWORD_LENGTH) {
+    const e = new Error(`password must be at most ${MAX_PASSWORD_LENGTH} characters`);
     e.status = 400;
     throw e;
   }

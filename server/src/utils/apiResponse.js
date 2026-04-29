@@ -1,12 +1,23 @@
 /**
- * Standard success envelope for JSON APIs.
+ * Standard JSON envelopes for API routes.
+ * Success: { success: true, data }
+ * Error:   { success: false, message }
+ *
  * @param {import('express').Response} res
  * @param {unknown} data
- * @param {{ message?: string, status?: number }} [opts]
+ * @param {number} [status=200]
  */
-function sendSuccess(res, data, opts = {}) {
-  const { message = 'OK', status = 200 } = opts;
-  res.status(status).json({ success: true, message, data });
+function sendSuccess(res, data, status = 200) {
+  res.status(status).json({ success: true, data });
 }
 
-module.exports = { sendSuccess };
+/**
+ * @param {import('express').Response} res
+ * @param {number} status
+ * @param {string} message
+ */
+function sendError(res, status, message) {
+  res.status(status).json({ success: false, message });
+}
+
+module.exports = { sendSuccess, sendError };

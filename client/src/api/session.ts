@@ -7,6 +7,9 @@ export type Session = {
   participants: string[];
   status: string;
   createdAt: string;
+  topic?: string;
+  topicKind?: string;
+  topicDetail?: string | null;
 };
 
 export async function apiCreateSession(title: string) {
@@ -19,9 +22,23 @@ export async function apiJoinSession(sessionId: string) {
   return data;
 }
 
+export type SessionEvaluationPayload = {
+  score: number;
+  strengths: string;
+  improvements: string;
+  metrics: {
+    communication: number;
+    engagement: number;
+    clarity: number;
+    confidence: number;
+  };
+};
+
+export type ParticipantEvaluationPayload = SessionEvaluationPayload & { userId: string };
+
 export type SessionEndPayload = {
   status: string;
-  evaluation: { score: number; feedback: string };
+  evaluations: ParticipantEvaluationPayload[];
 };
 
 export async function apiEndSession(sessionId: string) {

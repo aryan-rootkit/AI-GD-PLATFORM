@@ -83,7 +83,8 @@ export function SessionClient({ sessionId }: Props) {
     const copy: Record<string, string> = {
       created: 'Session created — you’re in the room.',
       joined: 'Joined session successfully.',
-      practice: 'Practice room ready. Mock AI participants are listed in the sidebar.',
+      practice:
+        'Practice room ready. Two or three simulated participants (AI_1, AI_2, …) appear in the sidebar—no real sockets.',
     };
     const msg = copy[flash.kind];
     if (msg) setWelcomeNotice(msg);
@@ -127,62 +128,12 @@ export function SessionClient({ sessionId }: Props) {
       setRoomError(payload.message || 'Room error');
     };
 
-    const onUserJoined = (payload: { userId: string; name: string }) => {
-      const name = (payload.name || 'Someone').trim() || 'Someone';
-      const line = `${name} joined the session`;
-      setMessages((prev) => {
-        const id =
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `sys:join:${payload.userId}:${Date.now()}`;
-        if (prev.some((p) => p.id === id)) return prev;
-        return [
-          ...prev,
-          {
-            id,
-            sessionId,
-            userId: '__system__',
-            kind: 'system' as const,
-            text: line,
-            at: new Date().toISOString(),
-          },
-        ];
-      });
-    };
-
-    const onUserLeft = (payload: { userId: string; name: string }) => {
-      const name = (payload.name || 'Someone').trim() || 'Someone';
-      const line = `${name} left the session`;
-      setMessages((prev) => {
-        const id =
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `sys:left:${payload.userId}:${Date.now()}`;
-        if (prev.some((p) => p.id === id)) return prev;
-        return [
-          ...prev,
-          {
-            id,
-            sessionId,
-            userId: '__system__',
-            kind: 'system' as const,
-            text: line,
-            at: new Date().toISOString(),
-          },
-        ];
-      });
-    };
-
     socket.on('receive_message', onReceive);
     socket.on('room_error', onRoomError);
-    socket.on('user_joined', onUserJoined);
-    socket.on('user_left', onUserLeft);
     return () => {
       socket.off('connect', emitJoin);
       socket.off('receive_message', onReceive);
       socket.off('room_error', onRoomError);
-      socket.off('user_joined', onUserJoined);
-      socket.off('user_left', onUserLeft);
     };
   }, [socket, sessionId, emitJoin]);
 
@@ -211,6 +162,8 @@ export function SessionClient({ sessionId }: Props) {
   const isHost = Boolean(user?.id && session?.hostId && session.hostId === user.id);
 
   const topicSubtitle = useMemo(() => {
+    const headline = session?.topic?.trim();
+    if (headline) return `Topic · ${headline}`;
     const kind = session?.topicKind;
     if (!kind) return null;
     if (kind === 'auto') return 'Topic · Auto-assigned';
@@ -224,7 +177,7 @@ export function SessionClient({ sessionId }: Props) {
       abstract: 'Abstract',
     };
     return `Topic · ${labels[kind] ?? kind}`;
-  }, [session?.topicKind, session?.topicDetail]);
+  }, [session?.topic, session?.topicKind, session?.topicDetail]);
 
   const participants = useMemo(() => {
     const raw = session?.participants;
@@ -421,7 +374,7 @@ export function SessionClient({ sessionId }: Props) {
             )}
             {messages.map((m) => (
               <SessionMessageRow
-                key={m.id || `${m.at}-${m.userId}`}
+                key={m.id || `${m.at}-${m.senderId || m.userId}-${m.text || m.content || ''}`}
                 msg={m}
                 selfId={user?.id}
               />

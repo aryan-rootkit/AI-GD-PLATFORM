@@ -17,10 +17,14 @@ import type { AppStackParamList } from '../../navigation/AppNavigator';
 export type ChatMessage = {
   sessionId: string;
   text: string;
+  content?: string;
   userId: string;
+  senderId?: string;
   at: string;
+  timestamp?: string;
   id?: string;
   kind?: 'message' | 'system';
+  type?: 'user' | 'system' | 'ai';
 };
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Room'>;
@@ -50,48 +54,17 @@ export function RoomScreen({ navigation, route }: Props) {
 
     const onReceive = (msg: ChatMessage) => {
       if (msg.sessionId !== sessionId) return;
-      setMessages((prev) => [...prev, msg]);
-    };
-
-    const onUserJoined = (payload: { userId: string; name: string }) => {
-      const name = (payload.name || 'Someone').trim() || 'Someone';
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `sys:join:${Date.now()}`,
-          sessionId,
-          userId: '__system__',
-          kind: 'system',
-          text: `${name} joined the session`,
-          at: new Date().toISOString(),
-        },
-      ]);
-    };
-
-    const onUserLeft = (payload: { userId: string; name: string }) => {
-      const name = (payload.name || 'Someone').trim() || 'Someone';
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `sys:left:${Date.now()}`,
-          sessionId,
-          userId: '__system__',
-          kind: 'system',
-          text: `${name} left the session`,
-          at: new Date().toISOString(),
-        },
-      ]);
+      setMessages((prev) => {
+        if (msg.id && prev.some((p) => p.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
     };
 
     socket.on('receive_message', onReceive);
-    socket.on('user_joined', onUserJoined);
-    socket.on('user_left', onUserLeft);
 
     return () => {
       socket.off('connect', emitJoin);
       socket.off('receive_message', onReceive);
-      socket.off('user_joined', onUserJoined);
-      socket.off('user_left', onUserLeft);
     };
   }, [socket, sessionId, user?.name, user?.email]);
 
@@ -107,7 +80,19 @@ export function RoomScreen({ navigation, route }: Props) {
     setEnding(true);
     try {
       const result = await apiEndSession(sessionId);
-      const body = `Score: ${result.evaluation.score}\n${result.evaluation.feedback}`;
+      const body = result.evaluations
+        .map((ev) => {
+          const m = ev.metrics;
+          const who = `${ev.userId.slice(0, 8)}…`;
+          return [
+            `Participant ${who}`,
+            `Score: ${ev.score}/10`,
+            `Strengths: ${ev.strengths}`,
+            `Improvements: ${ev.improvements}`,
+            `Metrics — comm ${m.communication}, engagement ${m.engagement}, clarity ${m.clarity}, confidence ${m.confidence}`,
+          ].join('\n');
+        })
+        .join('\n\n—\n\n');
       Alert.alert('Session ended', body, [
         { text: 'OK', onPress: () => navigation.navigate('Dashboard') },
       ]);
@@ -135,20 +120,23 @@ export function RoomScreen({ navigation, route }: Props) {
         ListEmptyComponent={
           <Text style={styles.empty}>No messages yet. Say hello.</Text>
         }
-        renderItem={({ item }) =>
-          item.kind === 'system' ? (
+        renderItem={({ item }) => {
+          const line = item.text || item.content || '';
+          const isSystem = item.kind === 'system' || item.type === 'system';
+          const uid = item.senderId || item.userId;
+          return isSystem ? (
             <View style={styles.systemRow}>
-              <Text style={styles.systemText}>{item.text}</Text>
+              <Text style={styles.systemText}>{line}</Text>
             </View>
           ) : (
             <View style={styles.bubble}>
               <Text style={styles.bubbleMeta}>
-                {item.userId === user?.id ? 'You' : item.userId.slice(0, 8)}
+                {uid === user?.id ? 'You' : uid.slice(0, 8)}
               </Text>
-              <Text style={styles.bubbleText}>{item.text}</Text>
+              <Text style={styles.bubbleText}>{line}</Text>
             </View>
-          )
-        }
+          );
+        }}
       />
 
       <View style={styles.inputRow}>

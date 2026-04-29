@@ -13,6 +13,8 @@ export type Session = {
   participants: string[];
   status: string;
   createdAt: string;
+  /** Resolved topic line (preset label, custom text, or preset · detail) for UI and downstream AI. */
+  topic?: string;
   topicKind?: SessionTopicKind;
   /** Required when `topicKind` is `custom`; optional extra note for other presets. */
   topicDetail?: string | null;
@@ -21,14 +23,23 @@ export type Session = {
   practiceParticipants?: PracticeParticipant[];
 };
 
+export type MessageType = 'user' | 'system' | 'ai';
+
 export type ChatPayload = {
   id?: string;
   sessionId: string;
+  /** Canonical body (alias: `text`) */
+  content?: string;
   text: string;
+  /** Canonical sender (alias: `userId`) */
+  senderId?: string;
   userId: string;
-  /** Denormalized from JWT when the message was stored */
+  senderName?: string;
+  /** Denormalized from JWT when the message was stored (alias: `senderName` in newer API) */
   senderEmail?: string;
   at: string;
-  /** Inline system line (join/leave); not persisted on the server */
+  timestamp?: string;
+  type?: MessageType;
+  /** @deprecated Prefer `type: 'system'` from server persistence */
   kind?: 'message' | 'system';
 };

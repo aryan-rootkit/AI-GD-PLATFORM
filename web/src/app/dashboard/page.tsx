@@ -149,14 +149,14 @@ export default function DashboardPage() {
       return;
     }
     setBusy('create');
-    const buildCreateBody = (): { title: string; topicKind: SessionTopicKind; topicDetail?: string } => {
+    const buildCreateBody = (): Record<string, unknown> => {
       if (topicAuto) {
-        return { title: title.trim(), topicKind: 'auto' };
+        return { title: title.trim(), topic: 'auto' };
       }
       if (topicPreset === 'custom') {
-        return { title: title.trim(), topicKind: 'custom', topicDetail: topicCustomText.trim() };
+        return { title: title.trim(), topic: { custom: topicCustomText.trim() } };
       }
-      return { title: title.trim(), topicKind: topicPreset };
+      return { title: title.trim(), topic: { preset: topicPreset } };
     };
     const attempt = async () => {
       const { data } = await api.post<Session>('/api/session/create', buildCreateBody());

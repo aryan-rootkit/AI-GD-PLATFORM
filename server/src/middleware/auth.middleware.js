@@ -1,14 +1,15 @@
 const { verifyToken } = require('../utils/jwt');
+const { sendError } = require('../utils/apiResponse');
 
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
-    res.status(401).json({ success: false, message: 'Authentication required' });
+    sendError(res, 401, 'Authentication required');
     return;
   }
   const token = header.slice('Bearer '.length).trim();
   if (!token) {
-    res.status(401).json({ success: false, message: 'Authentication required' });
+    sendError(res, 401, 'Authentication required');
     return;
   }
   try {
@@ -16,7 +17,7 @@ function authMiddleware(req, res, next) {
     req.user = { id: payload.sub, email: payload.email };
     next();
   } catch {
-    res.status(401).json({ success: false, message: 'Invalid or expired token' });
+    sendError(res, 401, 'Invalid or expired token');
   }
 }
 

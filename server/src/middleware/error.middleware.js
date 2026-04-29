@@ -1,9 +1,8 @@
+const { sendError } = require('../utils/apiResponse');
+
 function errorMiddleware(err, _req, res, _next) {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-    res.status(400).json({
-      success: false,
-      message: 'Invalid JSON in request body',
-    });
+    sendError(res, 400, 'Invalid JSON in request body');
     return;
   }
 
@@ -12,7 +11,7 @@ function errorMiddleware(err, _req, res, _next) {
   if (status >= 500) {
     console.error(err);
   }
-  res.status(status).json({ success: false, message });
+  sendError(res, status, message);
 }
 
 module.exports = { errorMiddleware };

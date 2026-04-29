@@ -21,39 +21,26 @@ function improvementFromScore(score: number | null): string {
   return 'Practice concise points and active listening next session.';
 }
 
-/** Derive two short lines from the single feedback string returned by the server. */
-export function splitStrengthAndImprovement(
-  feedback: string | null,
-  score: number | null,
-): { strength: string; improvement: string } {
-  const fb = feedback?.trim() ?? '';
-  if (!fb) {
-    return {
-      strength: 'You wrapped a full session—nice work.',
-      improvement: improvementFromScore(score),
-    };
-  }
-
-  const sentences = fb
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (sentences.length >= 2) {
-    const strength = sentences[0].length > 140 ? `${sentences[0].slice(0, 137)}…` : sentences[0];
-    const rest = sentences.slice(1).join(' ');
-    const improvement = rest.length > 160 ? `${rest.slice(0, 157)}…` : rest;
-    return { strength, improvement };
-  }
-
-  const strength = fb.length > 140 ? `${fb.slice(0, 137)}…` : fb;
-  return { strength, improvement: improvementFromScore(score) };
+function clip(s: string, max: number): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1).trimEnd()}…`;
 }
 
 export function historyItemToPreview(item: SessionHistoryItem): AIFeedbackPreview {
-  const { strength, improvement } = splitStrengthAndImprovement(item.feedback, item.score);
+  const ev = item.evaluation;
+  if (ev && typeof ev.score === 'number') {
+    const strengthRaw = ev.strengths?.trim() || '';
+    const improvementRaw = ev.improvements?.trim() || '';
+    return {
+      lastSessionScore: ev.score,
+      strength: strengthRaw ? clip(strengthRaw, 140) : 'You wrapped a full session—nice work.',
+      improvement: improvementRaw ? clip(improvementRaw, 160) : improvementFromScore(ev.score),
+    };
+  }
   return {
-    lastSessionScore: item.score,
-    strength,
-    improvement,
+    lastSessionScore: null,
+    strength: MOCK_AI_FEEDBACK_PREVIEW.strength,
+    improvement: improvementFromScore(null),
   };
 }

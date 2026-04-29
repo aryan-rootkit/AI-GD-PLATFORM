@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const mongoose = require('mongoose');
+const { normalizeEvaluationForApi } = require('../utils/evaluation');
 
 const practicePersonaSchema = new mongoose.Schema(
   {
@@ -23,9 +24,21 @@ const sessionSchema = new mongoose.Schema(
       default: 'auto',
     },
     topicDetail: { type: String, default: '' },
+    /** Resolved discussion topic line for UI / analytics / future AI (preset label, custom text, or preset · detail). */
+    topic: { type: String, default: '' },
     evaluation: {
       score: { type: Number },
+      /** @deprecated Prefer strengths / improvements; kept for legacy documents */
       feedback: { type: String },
+      strengths: { type: String },
+      improvements: { type: String },
+      metrics: {
+        communication: { type: Number },
+        engagement: { type: Number },
+        clarity: { type: Number },
+        confidence: { type: Number },
+      },
+      isGenerated: { type: Boolean, default: true },
     },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: false } },
@@ -55,14 +68,24 @@ function mapPracticeParticipants(arr) {
 
 const TOPIC_KINDS = ['business', 'technology', 'abstract', 'custom', 'auto'];
 
+function buildTopicLine(topicKind, topicDetailTrim) {
+  const kind =
+    typeof topicKind === 'string' && TOPIC_KINDS.includes(topicKind) ? topicKind : 'auto';
+  const d = topicDetailTrim || '';
+  const labels = { business: 'Business', technology: 'Technology', abstract: 'Abstract' };
+  if (kind === 'custom') return d;
+  if (kind === 'auto') return '';
+  const L = labels[kind];
+  if (!L) return d;
+  return d ? `${L} · ${d}` : L;
+}
+
 function mapSession(o) {
   if (!o) return null;
   const id = o._id != null ? String(o._id) : o.id;
   const evaluation =
-    o.evaluation &&
-    typeof o.evaluation.score === 'number' &&
-    typeof o.evaluation.feedback === 'string'
-      ? { score: o.evaluation.score, feedback: o.evaluation.feedback }
+    o.evaluation && typeof o.evaluation.score === 'number'
+      ? normalizeEvaluationForApi(o.evaluation)
       : undefined;
   const isPractice = Boolean(o.isPractice);
   const practiceParticipants = mapPracticeParticipants(o.practiceParticipants);
@@ -71,6 +94,8 @@ function mapSession(o) {
   const topicDetailRaw = o.topicDetail;
   const topicDetailTrim =
     typeof topicDetailRaw === 'string' && topicDetailRaw.trim() ? topicDetailRaw.trim() : '';
+  const topicRaw = typeof o.topic === 'string' ? o.topic.trim() : '';
+  const topic = topicRaw || buildTopicLine(topicKind, topicDetailTrim);
   return {
     id,
     title: o.title,
@@ -78,6 +103,7 @@ function mapSession(o) {
     participants: Array.isArray(o.participants) ? [...o.participants] : [],
     status: o.status,
     createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : new Date().toISOString(),
+    topic,
     topicKind,
     ...(topicDetailTrim ? { topicDetail: topicDetailTrim } : {}),
     ...(evaluation ? { evaluation } : {}),
@@ -98,7 +124,9 @@ async function createSession({
   const practice = Boolean(isPractice);
   const bots = practice ? mapPracticeParticipants(practiceParticipants) : [];
   const kind = typeof topicKind === 'string' && TOPIC_KINDS.includes(topicKind) ? topicKind : 'auto';
-  const detail = typeof topicDetail === 'string' ? topicDetail : '';
+  const detailRaw = typeof topicDetail === 'string' ? topicDetail : '';
+  const detailTrim = detailRaw.trim();
+  const storedTopic = buildTopicLine(kind, detailTrim);
   if (isMongo()) {
     const doc = await Session.create({
       title,
@@ -108,7 +136,8 @@ async function createSession({
       isPractice: practice,
       practiceParticipants: bots,
       topicKind: kind,
-      topicDetail: detail,
+      topicDetail: detailTrim,
+      topic: storedTopic,
     });
     return mapSession(doc.toObject());
   }
@@ -123,7 +152,8 @@ async function createSession({
     isPractice: practice,
     practiceParticipants: bots,
     topicKind: kind,
-    topicDetail: detail,
+    topicDetail: detailTrim,
+    topic: storedTopic,
   };
   sessions.set(id, session);
   return mapSession(session);
@@ -224,13 +254,13 @@ async function listEndedSessionsForUser(userId) {
   return out.slice(0, 100);
 }
 
-async function endSession(sessionId, evaluation) {
+async function endSession(sessionId) {
   const id = sessionId == null ? '' : String(sessionId).trim();
   if (isMongo()) {
     try {
       const doc = await Session.findByIdAndUpdate(
         id,
-        { status: 'ended', evaluation },
+        { $set: { status: 'ended' }, $unset: { evaluation: 1 } },
         { new: true },
       ).lean();
       if (!doc) return null;
@@ -243,7 +273,7 @@ async function endSession(sessionId, evaluation) {
   const s = sessions.get(id);
   if (!s) return null;
   s.status = 'ended';
-  s.evaluation = { ...evaluation };
+  delete s.evaluation;
   return mapSession(s);
 }
 

@@ -21,6 +21,8 @@ const evaluationSchema = new mongoose.Schema(
       clarity: { type: Number },
       confidence: { type: Number },
     },
+    /** False when a human-reviewed or external evaluation replaces the default AI-generated one */
+    isGenerated: { type: Boolean, default: true },
   },
   { timestamps: true },
 );

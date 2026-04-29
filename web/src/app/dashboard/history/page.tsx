@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { SessionHistoryItem } from '@/types/sessionHistory';
+import type { SessionEvaluation, SessionHistoryItem } from '@/types/sessionHistory';
 import { API_BASE_URL } from '@/utils/constants';
 import { ChevronDown, ChevronRight, History } from 'lucide-react';
 
@@ -14,12 +14,21 @@ function formatHistoryDate(iso: string): string {
   }
 }
 
-function shortFeedback(s: string | null, max = 140): string {
-  if (s == null || s === '') return 'No feedback recorded.';
-  const t = s.trim();
+function summaryFromEvaluation(ev: SessionEvaluation | null, max = 140): string {
+  if (!ev) return 'No evaluation recorded.';
+  const parts = [ev.strengths?.trim(), ev.improvements?.trim()].filter(Boolean);
+  if (parts.length === 0) return 'No feedback recorded.';
+  const t = parts.join(' ');
   if (t.length <= max) return t;
   return `${t.slice(0, max).trimEnd()}…`;
 }
+
+const METRIC_LABELS: { key: keyof SessionEvaluation['metrics']; label: string }[] = [
+  { key: 'communication', label: 'Communication' },
+  { key: 'engagement', label: 'Engagement' },
+  { key: 'clarity', label: 'Clarity' },
+  { key: 'confidence', label: 'Confidence' },
+];
 
 export default function DashboardHistoryPage() {
   const [items, setItems] = useState<SessionHistoryItem[] | null>(null);
@@ -97,6 +106,7 @@ export default function DashboardHistoryPage() {
         <ul className="space-y-3" aria-label="Session history">
           {items.map((row) => {
             const open = expandedId === row.sessionId;
+            const ev = row.evaluation;
             return (
               <li
                 key={row.sessionId}
@@ -121,16 +131,16 @@ export default function DashboardHistoryPage() {
                       <span
                         className={[
                           'rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums',
-                          row.score != null
+                          row.evaluation != null
                             ? 'bg-violet-500/20 text-violet-200'
                             : 'bg-slate-800 text-slate-500',
                         ].join(' ')}
                       >
-                        {row.score != null ? `Score ${row.score}/10` : 'No score'}
+                        {row.evaluation != null ? `Score ${row.evaluation.score}/10` : 'No score'}
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                      {shortFeedback(row.feedback)}
+                      {summaryFromEvaluation(row.evaluation)}
                     </p>
                   </div>
                 </button>
@@ -143,14 +153,46 @@ export default function DashboardHistoryPage() {
                     <p className="mt-2">
                       <span className="text-slate-500">Date</span> {formatHistoryDate(row.date)}
                     </p>
-                    {row.feedback && (
-                      <p className="mt-3 leading-relaxed text-slate-300">
-                        <span className="block text-xs font-medium uppercase tracking-wider text-slate-500">
-                          Full feedback
-                        </span>
-                        {row.feedback}
-                      </p>
-                    )}
+                    {ev ? (
+                      <div className="mt-3 space-y-3 text-slate-300">
+                        {ev.strengths?.trim() ? (
+                          <p className="leading-relaxed">
+                            <span className="block text-xs font-medium uppercase tracking-wider text-slate-500">
+                              Strengths
+                            </span>
+                            {ev.strengths}
+                          </p>
+                        ) : null}
+                        {ev.improvements?.trim() ? (
+                          <p className="leading-relaxed">
+                            <span className="block text-xs font-medium uppercase tracking-wider text-slate-500">
+                              Improvements
+                            </span>
+                            {ev.improvements}
+                          </p>
+                        ) : null}
+                        <div>
+                          <span className="block text-xs font-medium uppercase tracking-wider text-slate-500">
+                            Metrics (1–10)
+                          </span>
+                          <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {METRIC_LABELS.map(({ key, label }) => (
+                              <li
+                                key={key}
+                                className="rounded-lg border border-slate-800/80 bg-slate-950/40 px-2 py-2 text-center"
+                              >
+                                <span className="block text-[10px] uppercase tracking-wide text-slate-500">
+                                  {label}
+                                </span>
+                                <span className="text-sm font-semibold tabular-nums text-violet-200">
+                                  {ev.metrics[key]}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </li>

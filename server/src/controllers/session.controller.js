@@ -9,10 +9,12 @@ async function create(req, res, next) {
       title: req.body.title,
       hostId: req.user.id,
       isPractice,
+      topic: req.body.topic,
       topicKind: req.body.topicKind,
       topicDetail: req.body.topicDetail,
+      customTopic: req.body.customTopic,
     });
-    sendSuccess(res, session, { message: 'Session created', status: 201 });
+    sendSuccess(res, session, 201);
   } catch (err) {
     next(err);
   }
@@ -24,7 +26,7 @@ async function join(req, res, next) {
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
-    sendSuccess(res, session, { message: 'Joined session', status: 200 });
+    sendSuccess(res, session);
   } catch (err) {
     next(err);
   }
@@ -32,11 +34,14 @@ async function join(req, res, next) {
 
 async function leave(req, res, next) {
   try {
+    const email = req.user.email || '';
+    const leaverLabel = email.includes('@') ? email.split('@')[0] : email || 'Someone';
     const session = await sessionService.leaveSession({
       sessionId: req.params.sessionId,
       userId: req.user.id,
+      leaverLabel,
     });
-    sendSuccess(res, session, { message: 'Left session', status: 200 });
+    sendSuccess(res, session);
   } catch (err) {
     next(err);
   }
@@ -44,7 +49,7 @@ async function leave(req, res, next) {
 
 async function end(req, res, next) {
   try {
-    const session = await sessionService.endSession({
+    const { session, evaluations } = await sessionService.endSession({
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
@@ -52,10 +57,7 @@ async function end(req, res, next) {
       res,
       {
         status: session.status,
-        evaluation: {
-          score: session.evaluation.score,
-          feedback: session.evaluation.feedback,
-        },
+        evaluations,
       },
       { message: 'Session ended', status: 200 },
     );
@@ -70,7 +72,7 @@ async function getOne(req, res, next) {
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
-    sendSuccess(res, session, { message: 'OK', status: 200 });
+    sendSuccess(res, session);
   } catch (err) {
     next(err);
   }
@@ -82,7 +84,7 @@ async function listMessages(req, res, next) {
       sessionId: req.params.sessionId,
       userId: req.user.id,
     });
-    sendSuccess(res, messages, { message: 'OK', status: 200 });
+    sendSuccess(res, messages);
   } catch (err) {
     next(err);
   }
