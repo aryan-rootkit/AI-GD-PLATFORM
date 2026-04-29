@@ -1,17 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AppShell } from '@/components/layout/AppShell';
+import { ActiveSessionBanner } from '@/components/dashboard/ActiveSessionBanner';
+import { RecentSessionsList } from '@/components/dashboard/RecentSessionsList';
+import { AchievementsCard } from '@/components/dashboard/AchievementsCard';
+import { AIFeedbackPreviewCard } from '@/components/dashboard/AIFeedbackPreviewCard';
+import { UserActivityOverviewCard } from '@/components/dashboard/UserActivityOverviewCard';
 import { Button } from '@/components/ui/Button';
+import { FlashNotice } from '@/components/ui/FlashNotice';
 import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { useHasStoredRoomMeta } from '@/hooks/useHasStoredRoomMeta';
-import type { Session } from '@/types/session';
+import { useRecentSessions } from '@/hooks/useRecentSessions';
+import { useRoomMeta } from '@/hooks/useRoomMeta';
+import { useAIFeedbackPreview } from '@/hooks/useAIFeedbackPreview';
+import { useUserActivityOverview } from '@/hooks/useUserActivityOverview';
+import type { Session, SessionTopicKind } from '@/types/session';
 import { API_BASE_URL } from '@/utils/constants';
-import { MessageSquare, Plus, Users, Zap } from 'lucide-react';
+import { consumeSessionFlash, setSessionFlash, type SessionFlashKind } from '@/utils/sessionFlash';
+import { ArrowLeft, LogIn, Plus, Sparkles } from 'lucide-react';
+
+type TopicPreset = Exclude<SessionTopicKind, 'auto'>;
+type SessionPanelMode = 'pick' | 'create' | 'join';
 
 function isTimeoutError(e: unknown): boolean {
   if (e && typeof e === 'object' && 'code' in e && (e as { code?: string }).code === 'ECONNABORTED') {
@@ -66,38 +78,64 @@ function Spinner() {
 }
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
-  const { hasStoredRoomMeta, refreshRoomMeta } = useHasStoredRoomMeta();
+  const { roomMeta, hasActiveRoom, refreshRoomMeta, clearRoomMeta } = useRoomMeta();
+  const { overview: activityOverview, loading: activityLoading } = useUserActivityOverview(hasActiveRoom);
+  const aiFeedbackPreview = useAIFeedbackPreview();
+  const { recentSessions, rememberSession } = useRecentSessions();
   const [title, setTitle] = useState('');
+  const [topicAuto, setTopicAuto] = useState(false);
+  const [topicPreset, setTopicPreset] = useState<TopicPreset>('business');
+  const [topicCustomText, setTopicCustomText] = useState('');
   const [sessionId, setSessionId] = useState('');
-  const [busy, setBusy] = useState<'create' | 'join' | 'start' | null>(null);
+  const [joinTargetId, setJoinTargetId] = useState<string | null>(null);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
+  const [sessionPanelMode, setSessionPanelMode] = useState<SessionPanelMode>('pick');
+  const [busy, setBusy] = useState<'create' | 'join' | null>(null);
+  const [practiceBusy, setPracticeBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dashboardNotice, setDashboardNotice] = useState<string | null>(null);
 
-  const blockNewSession = hasStoredRoomMeta;
+  const blockNewSession = hasActiveRoom;
 
-  const goSession = (s: Session) => {
+  useEffect(() => {
+    const flash = consumeSessionFlash();
+    if (flash?.kind === 'ended') {
+      setDashboardNotice('Session ended successfully.');
+    }
+  }, []);
+
+  const openSessionPanel = () => {
+    setError(null);
+    setSessionPanelOpen(true);
+    setSessionPanelMode('pick');
+  };
+
+  const closeSessionPanel = () => {
+    setSessionPanelOpen(false);
+    setSessionPanelMode('pick');
+  };
+
+  const goPickMode = () => {
+    setSessionPanelMode('pick');
+    setError(null);
+  };
+
+  const goSession = (s: Session, entry?: SessionFlashKind) => {
+    rememberSession({ title: s.title, id: s.id });
     if (typeof window !== 'undefined') {
       sessionStorage.setItem(
         'roomMeta',
         JSON.stringify({ title: s.title, hostId: s.hostId, sessionId: s.id }),
       );
+      if (entry && entry !== 'ended') {
+        setSessionFlash({ kind: entry });
+      }
       refreshRoomMeta();
     }
     router.push(`/session/${s.id}`);
-  };
-
-  const startLiveSession = async () => {
-    setError(null);
-    setBusy('start');
-    try {
-      const { data } = await api.post<Session>('/api/session/create', { title: 'New Session' });
-      if (data?.id) goSession(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not start session');
-    } finally {
-      setBusy(null);
-    }
   };
 
   const createSession = async () => {
@@ -106,19 +144,32 @@ export default function DashboardPage() {
       setError('Enter a session title');
       return;
     }
+    if (!topicAuto && topicPreset === 'custom' && !topicCustomText.trim()) {
+      setError('Describe your custom topic');
+      return;
+    }
     setBusy('create');
+    const buildCreateBody = (): { title: string; topicKind: SessionTopicKind; topicDetail?: string } => {
+      if (topicAuto) {
+        return { title: title.trim(), topicKind: 'auto' };
+      }
+      if (topicPreset === 'custom') {
+        return { title: title.trim(), topicKind: 'custom', topicDetail: topicCustomText.trim() };
+      }
+      return { title: title.trim(), topicKind: topicPreset };
+    };
     const attempt = async () => {
-      const { data } = await api.post<Session>('/api/session/create', { title: title.trim() });
+      const { data } = await api.post<Session>('/api/session/create', buildCreateBody());
       return data;
     };
     try {
       try {
         const data = await attempt();
-        goSession(data);
+        goSession(data, 'created');
       } catch (first) {
         if (isTimeoutError(first)) {
           const data = await attempt();
-          goSession(data);
+          goSession(data, 'created');
         } else {
           throw first;
         }
@@ -130,13 +181,17 @@ export default function DashboardPage() {
     }
   };
 
-  const joinSession = async () => {
+  const joinSession = async (explicitSessionId?: string) => {
     setError(null);
-    const id = sessionId.trim();
+    const id = (explicitSessionId ?? sessionId).trim();
     if (!id) {
       setError('Enter a session ID');
       return;
     }
+    if (explicitSessionId !== undefined) {
+      setSessionId(explicitSessionId);
+    }
+    setJoinTargetId(id);
     setBusy('join');
     const attempt = async () => {
       const { data } = await api.post<Session>(`/api/session/join/${id}`);
@@ -145,10 +200,10 @@ export default function DashboardPage() {
     try {
       try {
         const data = await attempt();
-        goSession(data);
+        goSession(data, 'joined');
       } catch (first) {
         if (isTimeoutError(first)) {
-          goSession(await attempt());
+          goSession(await attempt(), 'joined');
         } else {
           throw first;
         }
@@ -157,23 +212,54 @@ export default function DashboardPage() {
       setError(sessionActionErrorMessage(e, 'Failed to join session'));
     } finally {
       setBusy(null);
+      setJoinTargetId(null);
+    }
+  };
+
+  const startPracticeSession = async () => {
+    setError(null);
+    setPracticeBusy(true);
+    try {
+      const { data } = await api.post<Session>('/api/session/create', {
+        title: 'Practice with AI',
+        isPractice: true,
+      });
+      if (data?.id) goSession(data, 'practice');
+    } catch (e) {
+      setError(sessionActionErrorMessage(e, 'Could not start practice session'));
+    } finally {
+      setPracticeBusy(false);
+    }
+  };
+
+  const leaveActiveSession = async () => {
+    if (!roomMeta?.sessionId) return;
+    setError(null);
+    if (!API_BASE_URL) {
+      clearRoomMeta();
+      setDashboardNotice('Active session cleared on this device.');
+      return;
+    }
+    setLeaveBusy(true);
+    try {
+      await api.post(`/api/session/leave/${roomMeta.sessionId}`);
+      clearRoomMeta();
+      setDashboardNotice('You left the session. Start or join another anytime.');
+    } catch (e) {
+      const st = getApiErrorStatus(e);
+      if (st === 404 || st === 400 || st === 403) {
+        clearRoomMeta();
+        setDashboardNotice('Session was cleared on this device.');
+      } else {
+        setError(sessionActionErrorMessage(e, 'Could not leave session'));
+      }
+    } finally {
+      setLeaveBusy(false);
     }
   };
 
   return (
-    <AppShell
-      title="Dashboard"
-      right={
-        <div className="flex items-center gap-3 text-sm">
-          <span className="hidden max-w-[12rem] truncate text-slate-400 sm:inline">
-            {user?.name || user?.email}
-          </span>
-          <Button variant="secondary" type="button" onClick={() => logout()}>
-            Sign out
-          </Button>
-        </div>
-      }
-    >
+    <>
       {!API_BASE_URL && (
         <p className="mb-6 rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-100">
           Set <code className="font-mono">NEXT_PUBLIC_API_URL</code> in <code className="font-mono">.env.local</code>{' '}
@@ -181,133 +267,277 @@ export default function DashboardPage() {
         </p>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[10rem_1fr]">
-        <aside className="hidden flex-col gap-1 rounded-2xl border border-slate-800/80 bg-slate-900/40 p-2 sm:flex sm:p-3">
-          <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Navigate</p>
-          <div className="rounded-lg bg-slate-800/60 p-2 text-slate-200">
-            <MessageSquare className="h-4 w-4" strokeWidth={1.75} aria-hidden />
-            <p className="mt-1 text-xs font-medium">Discussions</p>
-          </div>
-          <div className="mt-1 rounded-lg p-2 text-slate-500">
-            <Users className="h-4 w-4" strokeWidth={1.75} aria-hidden />
-            <p className="mt-1 text-xs">Cohort (soon)</p>
-          </div>
-        </aside>
+      <div className="min-w-0 space-y-6">
+          {dashboardNotice && (
+            <FlashNotice message={dashboardNotice} onDismiss={() => setDashboardNotice(null)} />
+          )}
 
-        <div className="min-w-0 space-y-6">
+          <UserActivityOverviewCard overview={activityOverview} loading={activityLoading} />
+
+          <AIFeedbackPreviewCard state={aiFeedbackPreview} />
+
+          <AchievementsCard />
+
+          {hasActiveRoom && roomMeta && (
+            <ActiveSessionBanner
+              roomMeta={roomMeta}
+              onResume={() => router.push(`/session/${roomMeta.sessionId}`)}
+              onLeave={leaveActiveSession}
+              leaveBusy={leaveBusy}
+              resumeDisabled={busy !== null || leaveBusy || practiceBusy}
+            />
+          )}
+
           <section
             className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-950/40 to-slate-900/50 p-6 sm:p-8"
-            aria-label="Start live"
+            aria-label="Start session"
           >
             <div
               className="pointer-events-none absolute -right-4 top-0 h-32 w-32 rounded-full bg-violet-600/20 blur-2xl"
               aria-hidden
             />
-            <div className="relative z-[1] flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-violet-300/90">
-                  Live room
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-white sm:text-2xl">Start a live session</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Creates a room, opens the Discord-style layout, and keeps real-time messages on.
-                </p>
-                {blockNewSession && (
-                  <p className="mt-2 text-xs text-amber-200/90">{ALREADY_IN_SESSION_HINT}</p>
-                )}
+            <div className="relative z-[1] flex flex-col gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-violet-300/90">Live room</p>
+                  <h2 className="mt-1 text-xl font-bold text-white sm:text-2xl">Start Session</h2>
+                  <p className="mt-1 max-w-xl text-sm text-slate-400">
+                    Create a room, join with an ID, or try <span className="text-slate-300">Practice with AI</span> for
+                    solo reps—no invite needed.
+                  </p>
+                </div>
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:shrink-0 sm:items-stretch">
+                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      type="button"
+                      onClick={openSessionPanel}
+                      disabled={busy !== null || sessionPanelOpen || practiceBusy || blockNewSession}
+                      aria-expanded={sessionPanelOpen}
+                      title={blockNewSession ? 'You are already in a session' : undefined}
+                      className="w-full min-w-0 px-6 py-3.5 text-base font-semibold shadow-lg shadow-violet-950/40 ring-2 ring-violet-400/35 sm:w-auto sm:min-w-[11rem]"
+                    >
+                      Start Session
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={startPracticeSession}
+                      disabled={busy !== null || sessionPanelOpen || practiceBusy || blockNewSession}
+                      title={blockNewSession ? 'You are already in a session' : undefined}
+                      className="w-full min-w-0 gap-2 px-4 py-3 text-sm sm:w-auto"
+                    >
+                      {practiceBusy ? (
+                        <>
+                          <Spinner />
+                          Starting…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 shrink-0 text-amber-300/90" strokeWidth={2} aria-hidden />
+                          Practice with AI
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <Button
-                type="button"
-                onClick={startLiveSession}
-                disabled={busy !== null || blockNewSession}
-                title={blockNewSession ? 'You are already in a session' : undefined}
-                className="w-full min-w-0 gap-2 px-5 py-3.5 sm:w-auto sm:shrink-0"
-              >
-                {busy === 'start' ? (
-                  <>
-                    <Spinner />
-                    Starting…
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4" strokeWidth={2.5} />
-                    Start live session
-                  </>
-                )}
-              </Button>
+
+              {!sessionPanelOpen && !blockNewSession && (
+                <p className="text-center text-xs text-slate-500 sm:text-left">
+                  Tip: use <span className="font-medium text-slate-400">Start Session</span> for create / join options.
+                </p>
+              )}
+
+              {sessionPanelOpen && (
+                <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-4 sm:p-5">
+                  <div className="mb-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={closeSessionPanel}
+                      disabled={busy !== null}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-300 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {sessionPanelMode === 'pick' && (
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-300">Choose how to enter your next room.</p>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          type="button"
+                          className="flex-1 gap-2 py-3"
+                          onClick={() => {
+                            setError(null);
+                            setSessionPanelMode('create');
+                          }}
+                          disabled={busy !== null || blockNewSession}
+                          title={blockNewSession ? 'You are already in a session' : undefined}
+                        >
+                          <Plus className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                          Create New Session
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="flex-1 gap-2 py-3"
+                          onClick={() => {
+                            setError(null);
+                            setSessionPanelMode('join');
+                          }}
+                          disabled={busy !== null}
+                        >
+                          <LogIn className="h-4 w-4 shrink-0 text-violet-400" strokeWidth={2} aria-hidden />
+                          Join Existing Session
+                        </Button>
+                      </div>
+                      {blockNewSession && (
+                        <p className="text-xs text-amber-200/90">{ALREADY_IN_SESSION_HINT}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {sessionPanelMode === 'create' && (
+                    <div className="space-y-4">
+                      <button
+                        type="button"
+                        onClick={goPickMode}
+                        disabled={busy !== null}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 disabled:opacity-50"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                        Back to options
+                      </button>
+                      <p className="text-sm text-slate-400">Name your room, then join as host.</p>
+                      {blockNewSession && (
+                        <p className="text-xs text-amber-200/90">{ALREADY_IN_SESSION_HINT}</p>
+                      )}
+                      <div className="space-y-3">
+                        <Input
+                          label="Session title"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          disabled={busy === 'create' || blockNewSession}
+                        />
+                        <div className="space-y-3 rounded-lg border border-slate-800/80 bg-slate-950/40 p-3">
+                          <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={topicAuto}
+                              onChange={(e) => setTopicAuto(e.target.checked)}
+                              disabled={busy === 'create' || blockNewSession}
+                              className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-violet-600 focus:ring-violet-500"
+                            />
+                            <span>Assign topic automatically</span>
+                          </label>
+                          {!topicAuto && (
+                            <>
+                              <label className="block space-y-1.5 text-sm">
+                                <span className="text-slate-300">Discussion topic</span>
+                                <select
+                                  value={topicPreset}
+                                  onChange={(e) => setTopicPreset(e.target.value as TopicPreset)}
+                                  disabled={busy === 'create' || blockNewSession}
+                                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                                >
+                                  <option value="business">Business</option>
+                                  <option value="technology">Technology</option>
+                                  <option value="abstract">Abstract</option>
+                                  <option value="custom">Custom</option>
+                                </select>
+                              </label>
+                              {topicPreset === 'custom' && (
+                                <Input
+                                  label="Custom topic"
+                                  value={topicCustomText}
+                                  onChange={(e) => setTopicCustomText(e.target.value)}
+                                  placeholder="What should participants explore?"
+                                  disabled={busy === 'create' || blockNewSession}
+                                />
+                              )}
+                            </>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={createSession}
+                          disabled={busy !== null || blockNewSession}
+                          title={blockNewSession ? 'You are already in a session' : undefined}
+                          className="w-full gap-2"
+                        >
+                          {busy === 'create' ? (
+                            <>
+                              <Spinner />
+                              Creating…
+                            </>
+                          ) : (
+                            'Create & open room'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {sessionPanelMode === 'join' && (
+                    <div className="space-y-4">
+                      <button
+                        type="button"
+                        onClick={goPickMode}
+                        disabled={busy !== null}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 disabled:opacity-50"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                        Back to options
+                      </button>
+                      <p className="text-sm text-slate-400">Rejoin a room you used before, or paste an ID from the host.</p>
+                      <p className="text-xs text-slate-500">
+                        Each participant must be signed in with their own account; the join request sends your auth
+                        token to the server.
+                      </p>
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recent sessions</p>
+                        <RecentSessionsList
+                          items={recentSessions}
+                          onRowClickFill={(id) => {
+                            setSessionId(id);
+                            setError(null);
+                          }}
+                          onJoin={(id) => joinSession(id)}
+                          joinBusyForId={busy === 'join' ? joinTargetId : null}
+                          disabled={busy !== null}
+                        />
+                      </div>
+                      <div className="space-y-3 border-t border-slate-800/80 pt-4">
+                        <p className="text-xs font-medium text-slate-500">Or enter a session ID manually</p>
+                        <Input
+                          label="Session ID"
+                          value={sessionId}
+                          onChange={(e) => setSessionId(e.target.value)}
+                          disabled={busy === 'join'}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => joinSession()}
+                          disabled={busy !== null}
+                          className="w-full gap-2"
+                        >
+                          {busy === 'join' && joinTargetId === sessionId.trim() ? (
+                            <>
+                              <Spinner />
+                              Joining…
+                            </>
+                          ) : (
+                            'Join room'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <section className="rounded-2xl border border-slate-800/90 bg-slate-900/40 p-5 sm:p-6">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-                <Plus className="h-5 w-5 text-violet-400" strokeWidth={2} aria-hidden />
-                Create session
-              </h2>
-              <p className="mt-1 text-sm text-slate-400">Name your room, then join as host.</p>
-              {blockNewSession && (
-                <p className="mt-2 text-xs text-amber-200/90">{ALREADY_IN_SESSION_HINT}</p>
-              )}
-              <div className="mt-4 space-y-3">
-                <Input
-                  label="Session title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={busy === 'create' || busy === 'start' || blockNewSession}
-                />
-                <Button
-                  type="button"
-                  onClick={createSession}
-                  disabled={busy !== null || blockNewSession}
-                  title={blockNewSession ? 'You are already in a session' : undefined}
-                  className="w-full gap-2"
-                >
-                  {busy === 'create' ? (
-                    <>
-                      <Spinner />
-                      Creating…
-                    </>
-                  ) : (
-                    'Create & open room'
-                  )}
-                </Button>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-slate-800/90 bg-slate-900/40 p-5 sm:p-6">
-              <h2 className="text-lg font-semibold text-white">Join session</h2>
-              <p className="mt-1 text-sm text-slate-400">Paste a session id from the host.</p>
-              <p className="mt-2 text-xs text-slate-500">
-                Each participant must be signed in here with their own account; the join request sends your auth
-                token to the server.
-              </p>
-              <div className="mt-4 space-y-3">
-                <Input
-                  label="Session ID"
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
-                  disabled={busy === 'join' || busy === 'start'}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={joinSession}
-                  disabled={busy !== null}
-                  className="w-full gap-2"
-                >
-                  {busy === 'join' ? (
-                    <>
-                      <Spinner />
-                      Joining…
-                    </>
-                  ) : (
-                    'Join room'
-                  )}
-                </Button>
-              </div>
-            </section>
-          </div>
-        </div>
       </div>
 
       {error && (
@@ -322,6 +552,6 @@ export default function DashboardPage() {
           </Link>
         </p>
       )}
-    </AppShell>
+    </>
   );
 }

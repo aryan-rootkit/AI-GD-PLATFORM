@@ -6,6 +6,7 @@ const router = Router();
 
 router.post('/create', authMiddleware, sessionController.create);
 router.post('/join/:sessionId', authMiddleware, sessionController.join);
+router.post('/leave/:sessionId', authMiddleware, sessionController.leave);
 router.post('/end/:sessionId', authMiddleware, sessionController.end);
 router.get('/:sessionId/messages', authMiddleware, sessionController.listMessages);
 router.get('/:sessionId', authMiddleware, sessionController.getOne);

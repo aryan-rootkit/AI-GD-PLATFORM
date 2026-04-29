@@ -14,6 +14,8 @@ import { SessionLeftSidebar } from '@/components/session/SessionLeftSidebar';
 import { SessionTopBar } from '@/components/session/SessionTopBar';
 import { SessionMessageRow } from '@/components/session/SessionMessageRow';
 import type { ChatPayload, Session } from '@/types/session';
+import { FlashNotice } from '@/components/ui/FlashNotice';
+import { consumeSessionFlash, setSessionFlash } from '@/utils/sessionFlash';
 
 type Props = { sessionId: string };
 
@@ -32,6 +34,7 @@ export function SessionClient({ sessionId }: Props) {
   const [rightOpen, setRightOpen] = useState(false);
   const [createBusy, setCreateBusy] = useState(false);
   const [isSessionMinimized, setIsSessionMinimized] = useState(false);
+  const [welcomeNotice, setWelcomeNotice] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const minimizeSession = useCallback(() => {
@@ -72,6 +75,19 @@ export function SessionClient({ sessionId }: Props) {
       cancelled = true;
     };
   }, [sessionId, router]);
+
+  useEffect(() => {
+    if (hydrating) return;
+    const flash = consumeSessionFlash();
+    if (!flash) return;
+    const copy: Record<string, string> = {
+      created: 'Session created — you’re in the room.',
+      joined: 'Joined session successfully.',
+      practice: 'Practice room ready. Mock AI participants are listed in the sidebar.',
+    };
+    const msg = copy[flash.kind];
+    if (msg) setWelcomeNotice(msg);
+  }, [hydrating]);
 
   const emitJoin = useCallback(() => {
     if (!socket?.connected || !sessionId) return;
@@ -194,22 +210,47 @@ export function SessionClient({ sessionId }: Props) {
   const title = session?.title || 'Session';
   const isHost = Boolean(user?.id && session?.hostId && session.hostId === user.id);
 
+  const topicSubtitle = useMemo(() => {
+    const kind = session?.topicKind;
+    if (!kind) return null;
+    if (kind === 'auto') return 'Topic · Auto-assigned';
+    if (kind === 'custom') {
+      const d = session.topicDetail?.trim();
+      return d ? `Topic · ${d}` : 'Topic · Custom';
+    }
+    const labels: Record<string, string> = {
+      business: 'Business',
+      technology: 'Technology',
+      abstract: 'Abstract',
+    };
+    return `Topic · ${labels[kind] ?? kind}`;
+  }, [session?.topicKind, session?.topicDetail]);
+
   const participants = useMemo(() => {
     const raw = session?.participants;
+    const practiceBots =
+      session?.isPractice && Array.isArray(session.practiceParticipants)
+        ? session.practiceParticipants.map((p) => ({
+            id: p.id,
+            isSelf: false,
+            online: true,
+            label: p.displayName,
+          }))
+        : [];
+
     if (!raw || raw.length === 0) {
       if (user?.id) {
-        return [
-          {
-            id: user.id,
-            isSelf: true,
-            online: true,
-            label: user.name || user.email?.split('@')[0] || 'You',
-          },
-        ];
+        const selfRow = {
+          id: user.id,
+          isSelf: true,
+          online: true,
+          label: user.name || user.email?.split('@')[0] || 'You',
+        };
+        return practiceBots.length ? [selfRow, ...practiceBots] : [selfRow];
       }
-      return [];
+      return practiceBots;
     }
-    return raw.map((id) => ({
+    const realRows = raw.map((id) => ({
       id,
       isSelf: id === user?.id,
       online: true,
@@ -218,7 +259,8 @@ export function SessionClient({ sessionId }: Props) {
           ? user.name || user.email?.split('@')[0] || 'You'
           : `Member ${id.slice(0, 6)}…`,
     }));
-  }, [session?.participants, user]);
+    return [...realRows, ...practiceBots];
+  }, [session?.participants, session?.isPractice, session?.practiceParticipants, user]);
 
   const participantCount = participants.length;
 
@@ -228,6 +270,7 @@ export function SessionClient({ sessionId }: Props) {
     setError(null);
     try {
       await api.post(`/api/session/end/${sessionId}`);
+      setSessionFlash({ kind: 'ended' });
       sessionStorage.removeItem('roomMeta');
       router.replace('/dashboard');
     } catch (e) {
@@ -253,6 +296,7 @@ export function SessionClient({ sessionId }: Props) {
               sessionId: data.id,
             }),
           );
+          setSessionFlash({ kind: 'created' });
           router.push(`/session/${data.id}`);
         }
       } catch {
@@ -276,6 +320,7 @@ export function SessionClient({ sessionId }: Props) {
         title={title}
         sessionId={sessionId}
         participantCount={participantCount}
+        topicSubtitle={topicSubtitle}
         isHost={isHost}
         ending={ending}
         onOpenParticipants={() => {
@@ -337,9 +382,14 @@ export function SessionClient({ sessionId }: Props) {
 
         <main className="flex min-h-0 min-w-0 flex-col border-white/5 lg:col-start-2 lg:row-start-1 lg:border-x">
           {hydrating && (
-            <p className="shrink-0 border-b border-amber-900/40 bg-amber-950/30 px-3 py-1.5 text-center text-xs text-amber-100/90">
-              Loading room…
+            <p className="shrink-0 border-b border-amber-900/40 bg-amber-950/30 px-3 py-2 text-center text-xs text-amber-100/90">
+              Loading room and messages…
             </p>
+          )}
+          {welcomeNotice && !hydrating && (
+            <div className="shrink-0 border-b border-emerald-900/30 px-3 py-2 sm:px-4">
+              <FlashNotice message={welcomeNotice} onDismiss={() => setWelcomeNotice(null)} />
+            </div>
           )}
           {roomError && (
             <p className="shrink-0 border-b border-amber-900/50 bg-amber-950/40 px-3 py-1.5 text-center text-xs text-amber-200">
@@ -362,9 +412,12 @@ export function SessionClient({ sessionId }: Props) {
             className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden scroll-smooth px-3 py-2 sm:px-4"
           >
             {!hydrating && messages.length === 0 && (
-              <p className="py-8 text-center text-sm text-slate-500">
-                No messages yet. Say something to start the discussion.
-              </p>
+              <div className="flex flex-col items-center gap-2 py-10 px-4 text-center">
+                <p className="text-sm font-medium text-slate-400">No messages yet</p>
+                <p className="max-w-sm text-xs leading-relaxed text-slate-500">
+                  Say hello, state your position, or ask a question—your opening helps set the tone for everyone.
+                </p>
+              </div>
             )}
             {messages.map((m) => (
               <SessionMessageRow

@@ -3,9 +3,14 @@ const { sendSuccess } = require('../utils/apiResponse');
 
 async function create(req, res, next) {
   try {
+    const raw = req.body && req.body.isPractice;
+    const isPractice = raw === true || raw === 'true' || raw === 1 || raw === '1';
     const session = await sessionService.createSession({
       title: req.body.title,
       hostId: req.user.id,
+      isPractice,
+      topicKind: req.body.topicKind,
+      topicDetail: req.body.topicDetail,
     });
     sendSuccess(res, session, { message: 'Session created', status: 201 });
   } catch (err) {
@@ -20,6 +25,18 @@ async function join(req, res, next) {
       userId: req.user.id,
     });
     sendSuccess(res, session, { message: 'Joined session', status: 200 });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function leave(req, res, next) {
+  try {
+    const session = await sessionService.leaveSession({
+      sessionId: req.params.sessionId,
+      userId: req.user.id,
+    });
+    sendSuccess(res, session, { message: 'Left session', status: 200 });
   } catch (err) {
     next(err);
   }
@@ -71,4 +88,4 @@ async function listMessages(req, res, next) {
   }
 }
 
-module.exports = { create, join, end, getOne, listMessages };
+module.exports = { create, join, leave, end, getOne, listMessages };

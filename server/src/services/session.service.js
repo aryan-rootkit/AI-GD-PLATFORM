@@ -35,18 +35,66 @@ function emitSessionEvaluated(sessionId, evaluation) {
   }
 }
 
-async function createSession({ title, hostId }) {
-  if (!title || typeof title !== 'string') {
+/** Mock AI personas for practice mode (no real users). */
+const PRACTICE_AI_PARTICIPANTS = [
+  { id: 'ai-practice-maya', displayName: 'Maya (AI)' },
+  { id: 'ai-practice-jordan', displayName: 'Jordan (AI)' },
+  { id: 'ai-practice-sam', displayName: 'Sam (AI)' },
+];
+
+const TOPIC_KINDS = ['business', 'technology', 'abstract', 'custom', 'auto'];
+
+function normalizeTopicForCreate(topicKind, topicDetail) {
+  const kind =
+    typeof topicKind === 'string' && TOPIC_KINDS.includes(String(topicKind).toLowerCase())
+      ? String(topicKind).toLowerCase()
+      : 'auto';
+  const detailTrim = typeof topicDetail === 'string' ? topicDetail.trim() : '';
+  if (kind === 'custom' && !detailTrim) {
+    const e = new Error('Custom topic requires a description');
+    e.status = 400;
+    throw e;
+  }
+  return {
+    topicKind: kind,
+    topicDetail: kind === 'auto' ? '' : detailTrim,
+  };
+}
+
+async function createSession({ title, hostId, isPractice = false, topicKind, topicDetail }) {
+  const practice = Boolean(isPractice);
+  if (!practice && (!title || typeof title !== 'string' || !title.trim())) {
     const e = new Error('title is required');
     e.status = 400;
     throw e;
   }
-  const session = await sessionModel.createSession({ title: title.trim(), hostId });
-  logger.info('Session created', { sessionId: session.id, hostId });
-  // Do not await: Redis/BullMQ can hang the HTTP response if Redis is slow or unreachable.
-  enqueueSessionCreatedSample(session.id).catch((err) => {
-    logger.warn('[session] queue enqueue skipped', { err: err?.message || String(err) });
+  const resolvedTitle = practice
+    ? (typeof title === 'string' && title.trim()) || 'Practice with AI'
+    : title.trim();
+
+  const topic = practice
+    ? { topicKind: 'auto', topicDetail: '' }
+    : normalizeTopicForCreate(topicKind, topicDetail);
+
+  const session = await sessionModel.createSession({
+    title: resolvedTitle,
+    hostId,
+    isPractice: practice,
+    practiceParticipants: practice ? PRACTICE_AI_PARTICIPANTS : [],
+    topicKind: topic.topicKind,
+    topicDetail: topic.topicDetail,
   });
+  logger.info('Session created', {
+    sessionId: session.id,
+    hostId,
+    isPractice: practice,
+    topicKind: topic.topicKind,
+  });
+  if (!practice) {
+    enqueueSessionCreatedSample(session.id).catch((err) => {
+      logger.warn('[session] queue enqueue skipped', { err: err?.message || String(err) });
+    });
+  }
   return session;
 }
 
@@ -144,6 +192,39 @@ async function appendAIModeratorMessage({ sessionId, text }) {
   });
 }
 
+/**
+ * Participant leaves the room (removed from participants). Host leaving ends the session for everyone.
+ */
+async function leaveSession({ sessionId, userId }) {
+  const existing = await sessionModel.findById(sessionId);
+  if (!existing) {
+    const e = new Error('Session not found');
+    e.status = 404;
+    throw e;
+  }
+  if (existing.status !== 'active') {
+    const e = new Error('This session has already ended');
+    e.status = 400;
+    throw e;
+  }
+  if (!existing.participants.includes(userId)) {
+    const e = new Error('You are not a member of this session');
+    e.status = 403;
+    throw e;
+  }
+  if (existing.hostId === userId) {
+    return endSession({ sessionId, userId });
+  }
+  const updated = await sessionModel.removeParticipant(sessionId, userId);
+  if (!updated) {
+    const e = new Error('Session not found');
+    e.status = 404;
+    throw e;
+  }
+  logger.info('User left session', { sessionId: String(sessionId), userId });
+  return updated;
+}
+
 async function endSession({ sessionId, userId }) {
   const existing = await sessionModel.findById(sessionId);
   if (!existing) {
@@ -180,6 +261,24 @@ async function endSession({ sessionId, userId }) {
 /**
  * Read-only session snapshot for debugging (host or participant only).
  */
+/**
+ * @returns {Promise<Array<{ sessionId: string, title: string, date: string, score: number | null, feedback: string | null }>>}
+ */
+async function listHistoryForUser({ userId }) {
+  const raw = await sessionModel.listEndedSessionsForUser(userId);
+  return raw
+    .map((doc) => sessionModel.mapSession(doc))
+    .filter((m) => m && m.status === 'ended')
+    .map((m) => ({
+      sessionId: m.id,
+      title: m.title,
+      date: m.createdAt,
+      score: m.evaluation && typeof m.evaluation.score === 'number' ? m.evaluation.score : null,
+      feedback:
+        m.evaluation && typeof m.evaluation.feedback === 'string' ? m.evaluation.feedback : null,
+    }));
+}
+
 async function getSessionDebug({ sessionId, userId }) {
   const session = await sessionModel.findById(sessionId);
   if (!session) {
@@ -204,11 +303,13 @@ async function getSessionDebug({ sessionId, userId }) {
 module.exports = {
   createSession,
   joinSession,
+  leaveSession,
   endSession,
   generateEvaluation,
   assertActiveParticipant,
   getSessionForUser,
   getSessionDebug,
+  listHistoryForUser,
   listSessionMessages,
   appendSessionMessage,
   appendAIModeratorMessage,

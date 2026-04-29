@@ -1,12 +1,28 @@
 const { randomUUID } = require('crypto');
 const mongoose = require('mongoose');
 
+const practicePersonaSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    displayName: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 const sessionSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     hostId: { type: String, required: true },
     participants: [{ type: String }],
     status: { type: String, enum: ['active', 'ended'], default: 'active' },
+    isPractice: { type: Boolean, default: false },
+    practiceParticipants: { type: [practicePersonaSchema], default: [] },
+    topicKind: {
+      type: String,
+      enum: ['business', 'technology', 'abstract', 'custom', 'auto'],
+      default: 'auto',
+    },
+    topicDetail: { type: String, default: '' },
     evaluation: {
       score: { type: Number },
       feedback: { type: String },
@@ -27,6 +43,18 @@ function isCastError(err) {
   return Boolean(err && err.name === 'CastError');
 }
 
+function mapPracticeParticipants(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((p) => ({
+      id: p && typeof p.id === 'string' ? p.id : '',
+      displayName: p && typeof p.displayName === 'string' ? p.displayName : 'AI participant',
+    }))
+    .filter((p) => p.id);
+}
+
+const TOPIC_KINDS = ['business', 'technology', 'abstract', 'custom', 'auto'];
+
 function mapSession(o) {
   if (!o) return null;
   const id = o._id != null ? String(o._id) : o.id;
@@ -36,6 +64,13 @@ function mapSession(o) {
     typeof o.evaluation.feedback === 'string'
       ? { score: o.evaluation.score, feedback: o.evaluation.feedback }
       : undefined;
+  const isPractice = Boolean(o.isPractice);
+  const practiceParticipants = mapPracticeParticipants(o.practiceParticipants);
+  const topicKind =
+    typeof o.topicKind === 'string' && TOPIC_KINDS.includes(o.topicKind) ? o.topicKind : 'auto';
+  const topicDetailRaw = o.topicDetail;
+  const topicDetailTrim =
+    typeof topicDetailRaw === 'string' && topicDetailRaw.trim() ? topicDetailRaw.trim() : '';
   return {
     id,
     title: o.title,
@@ -43,17 +78,37 @@ function mapSession(o) {
     participants: Array.isArray(o.participants) ? [...o.participants] : [],
     status: o.status,
     createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : new Date().toISOString(),
+    topicKind,
+    ...(topicDetailTrim ? { topicDetail: topicDetailTrim } : {}),
     ...(evaluation ? { evaluation } : {}),
+    ...(isPractice
+      ? { isPractice: true, practiceParticipants }
+      : {}),
   };
 }
 
-async function createSession({ title, hostId }) {
+async function createSession({
+  title,
+  hostId,
+  isPractice = false,
+  practiceParticipants = [],
+  topicKind = 'auto',
+  topicDetail = '',
+}) {
+  const practice = Boolean(isPractice);
+  const bots = practice ? mapPracticeParticipants(practiceParticipants) : [];
+  const kind = typeof topicKind === 'string' && TOPIC_KINDS.includes(topicKind) ? topicKind : 'auto';
+  const detail = typeof topicDetail === 'string' ? topicDetail : '';
   if (isMongo()) {
     const doc = await Session.create({
       title,
       hostId,
       participants: [hostId],
       status: 'active',
+      isPractice: practice,
+      practiceParticipants: bots,
+      topicKind: kind,
+      topicDetail: detail,
     });
     return mapSession(doc.toObject());
   }
@@ -65,9 +120,13 @@ async function createSession({ title, hostId }) {
     participants: [hostId],
     status: 'active',
     createdAt: new Date().toISOString(),
+    isPractice: practice,
+    practiceParticipants: bots,
+    topicKind: kind,
+    topicDetail: detail,
   };
   sessions.set(id, session);
-  return { ...session, participants: [...session.participants] };
+  return mapSession(session);
 }
 
 async function findById(sessionId) {
@@ -85,7 +144,29 @@ async function findById(sessionId) {
   }
   const s = sessions.get(id);
   if (!s) return null;
-  return { ...s, participants: [...s.participants] };
+  return mapSession(s);
+}
+
+async function removeParticipant(sessionId, userId) {
+  const id = sessionId == null ? '' : String(sessionId).trim();
+  if (isMongo()) {
+    try {
+      const doc = await Session.findByIdAndUpdate(
+        id,
+        { $pull: { participants: userId } },
+        { new: true, runValidators: true },
+      ).lean();
+      if (!doc || doc.status !== 'active') return null;
+      return mapSession(doc);
+    } catch (err) {
+      if (isCastError(err)) return null;
+      throw err;
+    }
+  }
+  const s = sessions.get(id);
+  if (!s || s.status !== 'active') return null;
+  s.participants = s.participants.filter((p) => p !== userId);
+  return mapSession(s);
 }
 
 async function addParticipant(sessionId, userId) {
@@ -109,13 +190,40 @@ async function addParticipant(sessionId, userId) {
   if (!s.participants.includes(userId)) {
     s.participants.push(userId);
   }
-  return { ...s, participants: [...s.participants] };
+  return mapSession(s);
 }
 
 /**
- * @param {string} sessionId
- * @param {{ score: number, feedback: string }} evaluation
+ * Ended sessions the user hosted or joined, newest first (cap 100).
  */
+async function listEndedSessionsForUser(userId) {
+  if (!userId) return [];
+  if (isMongo()) {
+    try {
+      const docs = await Session.find({
+        status: 'ended',
+        $or: [{ hostId: userId }, { participants: userId }],
+      })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean();
+      return docs;
+    } catch (err) {
+      throw err;
+    }
+  }
+  const out = [];
+  for (const s of sessions.values()) {
+    if (s.status !== 'ended') continue;
+    const inRoom =
+      s.hostId === userId || (Array.isArray(s.participants) && s.participants.includes(userId));
+    if (!inRoom) continue;
+    out.push({ ...s, participants: [...s.participants] });
+  }
+  out.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return out.slice(0, 100);
+}
+
 async function endSession(sessionId, evaluation) {
   const id = sessionId == null ? '' : String(sessionId).trim();
   if (isMongo()) {
@@ -136,7 +244,15 @@ async function endSession(sessionId, evaluation) {
   if (!s) return null;
   s.status = 'ended';
   s.evaluation = { ...evaluation };
-  return { ...s, participants: [...s.participants], evaluation: { ...s.evaluation } };
+  return mapSession(s);
 }
 
-module.exports = { createSession, findById, addParticipant, endSession };
+module.exports = {
+  createSession,
+  findById,
+  addParticipant,
+  removeParticipant,
+  endSession,
+  listEndedSessionsForUser,
+  mapSession,
+};

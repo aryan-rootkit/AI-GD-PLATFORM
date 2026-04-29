@@ -7,6 +7,8 @@ type Props = {
   title: string;
   sessionId: string;
   participantCount: number;
+  /** Short line under the title (e.g. discussion topic). */
+  topicSubtitle?: string | null;
   isHost: boolean;
   ending: boolean;
   onOpenParticipants: () => void;
@@ -20,6 +22,7 @@ export function SessionTopBar({
   title,
   sessionId,
   participantCount,
+  topicSubtitle,
   isHost,
   ending,
   onOpenParticipants,
@@ -44,6 +47,9 @@ export function SessionTopBar({
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="line-clamp-2 text-sm font-semibold leading-tight text-white sm:text-base">{title}</h1>
+          {topicSubtitle ? (
+            <p className="mt-0.5 line-clamp-2 text-xs text-violet-300/90">{topicSubtitle}</p>
+          ) : null}
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1 text-slate-400">
               <Users className="h-3.5 w-3.5 shrink-0 text-slate-500" strokeWidth={2} aria-hidden />

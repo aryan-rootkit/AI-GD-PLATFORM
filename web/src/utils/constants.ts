@@ -14,3 +14,5 @@ export const TOKEN_KEY = 'aigd_token';
 export const USER_KEY = 'aigd_user';
 /** Set on first "Continue" in `/onboarding` (local; controls post-login route). */
 export const ONBOARDING_KEY = 'aigd_onboarded';
+/** Dashboard join UX: recently opened sessions (local only). */
+export const RECENT_SESSIONS_KEY = 'aigd_recent_sessions';
