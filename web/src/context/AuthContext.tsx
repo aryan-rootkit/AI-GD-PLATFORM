@@ -18,7 +18,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
   ready: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, redirectTo?: string | null) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   completeOnboarding: (displayName: string) => void;
   logout: () => void;
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, redirectTo?: string | null) => {
       const { data } = await api.post<{ token: string; user: AuthUser }>('/api/auth/login', {
         email,
         password,
@@ -69,7 +69,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-      router.replace(postLoginPath());
+      const safe =
+        redirectTo &&
+        redirectTo.startsWith('/') &&
+        !redirectTo.startsWith('//') &&
+        !redirectTo.includes('\n')
+          ? redirectTo
+          : null;
+      router.replace(safe || postLoginPath());
     },
     [router, postLoginPath],
   );

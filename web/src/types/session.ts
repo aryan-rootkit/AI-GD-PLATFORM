@@ -42,4 +42,6 @@ export type ChatPayload = {
   type?: MessageType;
   /** @deprecated Prefer `type: 'system'` from server persistence */
   kind?: 'message' | 'system';
+  isKeyPoint?: boolean;
+  reactions?: { agree: number; disagree: number };
 };

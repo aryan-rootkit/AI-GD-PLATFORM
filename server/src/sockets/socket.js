@@ -4,6 +4,7 @@ const { getSocketCorsOrigin } = require('../config/corsOrigins');
 const logger = require('../utils/logger');
 const { generateModeratorResponse } = require('../services/ai.service');
 const sessionService = require('../services/session.service');
+const messageModel = require('../models/message.model');
 
 let ioRef;
 
@@ -152,6 +153,66 @@ function attachSocket(httpServer) {
           status: err.status || 400,
         });
       }
+    });
+
+    socket.on('mark_key_point', async (payload) => {
+      const sessionId = payload?.sessionId != null ? String(payload.sessionId).trim() : '';
+      const messageId = payload?.messageId != null ? String(payload.messageId).trim() : '';
+      if (!sessionId || !messageId || !socket.user) return;
+      try {
+        await sessionService.assertActiveParticipant(sessionId, socket.user.id);
+        const value = payload?.value !== false;
+        const updated = await messageModel.setKeyPoint({ sessionId, messageId, value });
+        if (updated) {
+          io.to(String(sessionId)).emit('message_patch', {
+            messageId: updated.id,
+            isKeyPoint: updated.isKeyPoint,
+            reactions: updated.reactions,
+          });
+        }
+      } catch (err) {
+        socket.emit('room_error', {
+          sessionId: String(sessionId),
+          message: err.message || 'Could not update message',
+          status: err.status || 400,
+        });
+      }
+    });
+
+    socket.on('message_reaction', async (payload) => {
+      const sessionId = payload?.sessionId != null ? String(payload.sessionId).trim() : '';
+      const messageId = payload?.messageId != null ? String(payload.messageId).trim() : '';
+      const kind = payload?.kind === 'disagree' ? 'disagree' : 'agree';
+      if (!sessionId || !messageId || !socket.user) return;
+      try {
+        await sessionService.assertActiveParticipant(sessionId, socket.user.id);
+        const updated = await messageModel.addReaction({ sessionId, messageId, kind });
+        if (updated) {
+          io.to(String(sessionId)).emit('message_patch', {
+            messageId: updated.id,
+            isKeyPoint: updated.isKeyPoint,
+            reactions: updated.reactions,
+          });
+        }
+      } catch (err) {
+        socket.emit('room_error', {
+          sessionId: String(sessionId),
+          message: err.message || 'Could not add reaction',
+          status: err.status || 400,
+        });
+      }
+    });
+
+    socket.on('typing', (payload) => {
+      const sessionId = payload?.sessionId != null ? String(payload.sessionId).trim() : '';
+      if (!sessionId || !socket.user) return;
+      const tracked = socket.data.trackedSessions;
+      if (!tracked || !tracked.has(sessionId)) return;
+      const displayName = pickDisplayName(socket.user, payload);
+      socket.to(String(sessionId)).emit('participant_typing', {
+        userId: socket.user.id,
+        displayName,
+      });
     });
 
     socket.on('send_message', async (payload) => {
