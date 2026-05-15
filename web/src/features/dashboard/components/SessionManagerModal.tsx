@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { X, Plus, LogIn, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { X, Plus, LogIn, Loader2, Sparkles } from 'lucide-react';
 import { RecentSessionsList } from './RecentSessionsList';
 import { useCreateSessionMutation, useJoinSessionMutation } from '../hooks/useDashboardQueries';
 import { useRecentSessions } from '@/hooks/useRecentSessions';
@@ -14,7 +14,7 @@ type TopicPreset = Exclude<SessionTopicKind, 'auto'>;
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  onSessionReady: (session: any, action: 'created' | 'joined' | 'practice') => void;
+  onSessionReady: (session: { title: string; id: string; hostId?: string }, action: 'created' | 'joined' | 'practice') => void;
   blockNewSession: boolean;
 };
 
@@ -46,8 +46,9 @@ export function SessionManagerModal({ isOpen, onClose, onSessionReady, blockNewS
     try {
       const data = await createMutation.mutateAsync(payload);
       onSessionReady(data, 'created');
-    } catch (e: any) {
-      setError(e.message || 'Failed to create session');
+    } catch (e) {
+      const err = e as Error;
+      setError(err.message || 'Failed to create session');
     }
   };
 
@@ -59,8 +60,9 @@ export function SessionManagerModal({ isOpen, onClose, onSessionReady, blockNewS
     try {
       const data = await joinMutation.mutateAsync(id);
       onSessionReady(data, 'joined');
-    } catch (e: any) {
-      setError(e.message || 'Failed to join session');
+    } catch (e) {
+      const err = e as Error;
+      setError(err.message || 'Failed to join session');
     }
   };
 
@@ -72,8 +74,9 @@ export function SessionManagerModal({ isOpen, onClose, onSessionReady, blockNewS
         isPractice: true,
       });
       onSessionReady(data, 'practice');
-    } catch (e: any) {
-      setError(e.message || 'Failed to start practice session');
+    } catch (e) {
+      const err = e as Error;
+      setError(err.message || 'Failed to start practice session');
     }
   };
 

@@ -14,9 +14,10 @@ import { SessionManagerModal } from '@/features/dashboard/components/SessionMana
 import { Button } from '@/components/ui/Button';
 import { FlashNotice } from '@/components/ui/FlashNotice';
 import { consumeSessionFlash, setSessionFlash, type SessionFlashKind } from '@/utils/sessionFlash';
-import { Plus, Users } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import Link from 'next/link';
-import { AchievementsCard } from '@/components/dashboard/AchievementsCard';
+import { AchievementsCard } from '@/features/dashboard/components/AchievementsCard';
+import { Mic2, Target } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -35,7 +36,7 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const handleSessionReady = (s: any, entry?: SessionFlashKind) => {
+  const handleSessionReady = (s: { title: string; id: string; hostId?: string }, entry?: SessionFlashKind) => {
     rememberSession({ title: s.title, id: s.id });
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('roomMeta', JSON.stringify({ title: s.title, hostId: s.hostId, sessionId: s.id }));
@@ -52,8 +53,9 @@ export default function DashboardPage() {
       await leaveMutation.mutateAsync(roomMeta.sessionId);
       clearRoomMeta();
       setDashboardNotice('You left the session.');
-    } catch (e: any) {
-      if (e.status === 404 || e.status === 400 || e.status === 403) {
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      if (err.status === 404 || err.status === 400 || err.status === 403) {
         clearRoomMeta();
         setDashboardNotice('Session was cleared on this device.');
       }
@@ -96,7 +98,19 @@ export default function DashboardPage() {
 
       <div className="grid gap-8 lg:grid-cols-2">
         <AIFeedbackPreviewWidget />
-        <AchievementsCard />
+        <AchievementsCard
+          title="Your Achievements"
+          description="Preview — full progression and unlocks coming soon."
+          progress={45}
+          score={[
+            { label: 'Top Score', value: 9, max: 10 },
+            { label: 'Sessions Count', value: 12 }
+          ]}
+          badge={[
+            { id: 'top-speaker', label: 'Top Speaker', icon: Mic2 },
+            { id: 'best-argument', label: 'Best Argument', icon: Target }
+          ]}
+        />
       </div>
 
       <SessionManagerModal

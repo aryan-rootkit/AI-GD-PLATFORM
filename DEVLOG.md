@@ -4,6 +4,15 @@ Newest entries first (IST = UTC+5:30).
 
 ---
 
+## [2026-05-16 03:30 IST] Fix — Dashboard import resolution and production build stabilization
+
+- Fixed missing module error `Can't resolve '@/components/dashboard/AchievementsCard'` caused during dashboard modularization.
+- Updated `AchievementsCard` to use a modular and reusable architecture supporting dynamic properties (`title`, `description`, `icon`, `progress`, `badge`, `score`).
+- Re-routed all `AchievementsCard` imports from the legacy `components/dashboard` path to the new feature-sliced path `features/dashboard/components`.
+- Resolved ESLint build-blocking warnings, fixing missing typescript definitions and `any` types across the dashboard components to ensure a fully compliant production build.
+
+---
+
 ## [2026-04-27 20:15 IST] Fix — Logout and unauthenticated users land on home
 
 - `AuthGuard` now `router.replace('/')` when there is no token (was `/login`), so it no longer races with logout.
