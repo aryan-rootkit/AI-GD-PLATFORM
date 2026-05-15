@@ -3,8 +3,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { DashboardSidebarNav } from '@/components/dashboard/DashboardSidebarNav';
-import { dashboardSectionTitle } from '@/components/dashboard/dashboardNav';
+import { DashboardSidebarNav } from './DashboardSidebarNav';
+import { dashboardSectionTitle } from '../utils/dashboardNav';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 

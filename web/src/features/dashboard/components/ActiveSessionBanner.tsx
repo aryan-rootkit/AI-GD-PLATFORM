@@ -21,20 +21,20 @@ export function ActiveSessionBanner({
 }: Props) {
   return (
     <div
-      className="flex flex-col gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-950/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+      className="flex flex-col gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-4 backdrop-blur-md shadow-lg shadow-emerald-900/20 sm:flex-row sm:items-center sm:justify-between sm:px-5"
       role="status"
       aria-live="polite"
     >
       <div className="flex min-w-0 gap-3">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400"
           aria-hidden
         >
-          <Radio className="h-5 w-5" strokeWidth={2} />
+          <Radio className="h-5 w-5 animate-pulse" strokeWidth={2} />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-emerald-100">You are in an active session</p>
-          <p className="mt-0.5 truncate text-sm text-slate-400" title={roomMeta.title}>
+          <p className="font-semibold text-emerald-50">You are in an active session</p>
+          <p className="mt-0.5 truncate text-sm text-emerald-200/70" title={roomMeta.title}>
             {roomMeta.title}
           </p>
         </div>
@@ -44,7 +44,7 @@ export function ActiveSessionBanner({
           type="button"
           onClick={onResume}
           disabled={resumeDisabled}
-          className="w-full gap-2 sm:w-auto"
+          className="w-full gap-2 sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white"
         >
           Resume Session
         </Button>

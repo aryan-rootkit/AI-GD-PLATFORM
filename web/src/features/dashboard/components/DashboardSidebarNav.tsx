@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { DASHBOARD_NAV, isDashboardNavActive } from '@/components/dashboard/dashboardNav';
+import { DASHBOARD_NAV, isDashboardNavActive } from '../utils/dashboardNav';
 import { BarChart2, History, LayoutDashboard, MessageSquare, User } from 'lucide-react';
 
 const ICONS = {

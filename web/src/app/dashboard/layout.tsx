@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { DashboardFrame } from '@/components/dashboard/DashboardFrame';
+import { DashboardFrame } from '@/features/dashboard/components/DashboardFrame';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
