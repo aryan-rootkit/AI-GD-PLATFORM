@@ -1,9 +1,19 @@
 # Development log
 
 Newest entries first (IST = UTC+5:30).
-
 ---
 
+## [2026-05-16 04:15 IST] Feature — Dashboard Layout & Feature Overhaul
+
+* Implemented a new Horizontal Top Navigation bar (`DashboardTopNav`), retiring the legacy sidebar to increase horizontal screen space and improve SaaS aesthetics.
+* Broke down `SessionManagerModal` into modular pieces (`CreateSessionForm`, `JoinSessionForm`, `PracticeModeForm`), improving codebase maintainability.
+* Added Practice Mode AI mock generation capabilities.
+* Updated backend session models to support new template topics (Debate, Pitch, HR, Case Study, General).
+* Expanded Gamification UI by extracting `BadgePill` and `ProgressWidget`.
+* Added `LiveActivityFeed` component to simulate an active and intelligent workspace.
+* Added `InviteParticipantsModal` allowing users to quickly copy invite links and session IDs from the active session banner.
+
+---
 ## [2026-05-16 03:30 IST] Fix — Dashboard import resolution and production build stabilization
 
 - Fixed missing module error `Can't resolve '@/components/dashboard/AchievementsCard'` caused during dashboard modularization.

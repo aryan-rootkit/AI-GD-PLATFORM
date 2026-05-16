@@ -13,12 +13,11 @@ const ICONS = {
   '/dashboard/profile': User,
 } as const;
 
-export function DashboardSidebarNav() {
+export function DashboardTopNav() {
   const pathname = usePathname() || '/dashboard';
 
   return (
-    <nav className="flex flex-col gap-0.5" aria-label="Dashboard sections">
-      <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Menu</p>
+    <nav className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide" aria-label="Dashboard sections">
       {DASHBOARD_NAV.map((item) => {
         const active = isDashboardNavActive(item.href, pathname);
         const Icon = ICONS[item.href as keyof typeof ICONS] ?? LayoutDashboard;
@@ -27,9 +26,9 @@ export function DashboardSidebarNav() {
             key={item.href}
             href={item.href}
             className={[
-              'flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition',
+              'flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm transition-all duration-200 whitespace-nowrap',
               active
-                ? 'bg-violet-600/20 font-medium text-violet-200 ring-1 ring-violet-500/35'
+                ? 'bg-violet-600/20 font-medium text-violet-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] ring-1 ring-violet-500/35 backdrop-blur-sm'
                 : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200',
             ].join(' ')}
             aria-current={active ? 'page' : undefined}

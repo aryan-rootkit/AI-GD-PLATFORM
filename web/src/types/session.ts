@@ -4,7 +4,7 @@ export type PracticeParticipant = {
 };
 
 /** How the discussion is framed; `custom` uses `topicDetail` text; `auto` defers assignment. */
-export type SessionTopicKind = 'business' | 'technology' | 'abstract' | 'custom' | 'auto';
+export type SessionTopicKind = 'business' | 'technology' | 'abstract' | 'custom' | 'auto' | 'debate' | 'pitch' | 'hr' | 'case-study' | 'general';
 
 export type Session = {
   id: string;

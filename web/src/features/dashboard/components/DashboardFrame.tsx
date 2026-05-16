@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { DashboardSidebarNav } from './DashboardSidebarNav';
+import { DashboardTopNav } from './DashboardTopNav';
 import { dashboardSectionTitle } from '../utils/dashboardNav';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,15 +33,13 @@ export function DashboardFrame({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="grid min-h-0 gap-6 lg:grid-cols-[11.5rem_minmax(0,1fr)]">
-          <aside className="lg:sticky lg:top-8 lg:self-start">
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-2 sm:p-3">
-              <DashboardSidebarNav />
-            </div>
-          </aside>
-          <div className="min-w-0">{children}</div>
+      <div className="border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-4 pt-4">
+          <DashboardTopNav />
         </div>
+      </div>
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <div className="min-w-0">{children}</div>
       </main>
     </div>
   );

@@ -11,6 +11,7 @@ import { ActiveSessionBanner } from '@/features/dashboard/components/ActiveSessi
 import { ActivitySummaryCards } from '@/features/dashboard/components/ActivitySummaryCards';
 import { AIFeedbackPreviewWidget } from '@/features/dashboard/components/AIFeedbackPreviewWidget';
 import { SessionManagerModal } from '@/features/dashboard/components/SessionManagerModal';
+import { LiveActivityFeed } from '@/features/dashboard/components/LiveActivityFeed';
 import { Button } from '@/components/ui/Button';
 import { FlashNotice } from '@/components/ui/FlashNotice';
 import { consumeSessionFlash, setSessionFlash, type SessionFlashKind } from '@/utils/sessionFlash';
@@ -96,21 +97,26 @@ export default function DashboardPage() {
 
       <ActivitySummaryCards />
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <AIFeedbackPreviewWidget />
-        <AchievementsCard
-          title="Your Achievements"
-          description="Preview — full progression and unlocks coming soon."
-          progress={45}
-          score={[
-            { label: 'Top Score', value: 9, max: 10 },
-            { label: 'Sessions Count', value: 12 }
-          ]}
-          badge={[
-            { id: 'top-speaker', label: 'Top Speaker', icon: Mic2 },
-            { id: 'best-argument', label: 'Best Argument', icon: Target }
-          ]}
-        />
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-8">
+          <AIFeedbackPreviewWidget />
+          <AchievementsCard
+            title="Your Achievements"
+            description="Preview — full progression and unlocks coming soon."
+            progress={45}
+            score={[
+              { label: 'Top Score', value: 9, max: 10 },
+              { label: 'Sessions Count', value: 12 }
+            ]}
+            badge={[
+              { id: 'top-speaker', label: 'Top Speaker', icon: Mic2 },
+              { id: 'best-argument', label: 'Best Argument', icon: Target }
+            ]}
+          />
+        </div>
+        <div className="lg:col-span-1 space-y-8">
+          <LiveActivityFeed />
+        </div>
       </div>
 
       <SessionManagerModal

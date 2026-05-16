@@ -2,6 +2,8 @@
 
 import type { LucideIcon } from 'lucide-react';
 import { Trophy } from 'lucide-react';
+import { ProgressWidget } from './ProgressWidget';
+import { BadgePill } from './BadgePill';
 
 export type AchievementsCardProps = {
   title?: string;
@@ -16,8 +18,8 @@ export function AchievementsCard({
   title = 'Your Achievements',
   description = 'Preview — full progression and unlocks coming soon.',
   icon: Icon = Trophy,
-  progress = 0,
-  badge = [],
+  progress,
+  badge: badges = [],
   score = [],
 }: AchievementsCardProps) {
   return (
@@ -33,18 +35,9 @@ export function AchievementsCard({
       </div>
       {description && <p className="mt-1 text-xs text-slate-400">{description}</p>}
 
-      {progress > 0 && (
-        <div className="mt-4">
-          <div className="flex justify-between text-xs text-slate-400 mb-1">
-            <span>Progress</span>
-            <span>{progress}%</span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-slate-800">
-            <div
-              className="h-2 rounded-full bg-amber-400/80 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+      {typeof progress === 'number' && (
+        <div className="mb-6 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-700">
+          <ProgressWidget label="Progress" progress={progress} />
         </div>
       )}
 
@@ -62,20 +55,16 @@ export function AchievementsCard({
         </div>
       )}
 
-      {badge.length > 0 && (
-        <div className="mt-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Badges</p>
-          <ul className="mt-2 flex flex-wrap gap-2" aria-label="Badges">
-            {badge.map((b) => (
-              <li
-                key={b.id}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-800/50 px-3 py-1.5 text-xs font-medium text-slate-300"
-              >
-                <b.icon className="h-3.5 w-3.5 shrink-0 text-amber-400" strokeWidth={2} aria-hidden />
-                {b.label}
-              </li>
+      {badges && badges.length > 0 && (
+        <div className="mt-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <h4 className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Badges
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {badges.map((badge, i) => (
+              <BadgePill key={i} label={badge.label} icon={badge.icon} />
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </section>

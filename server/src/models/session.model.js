@@ -20,7 +20,7 @@ const sessionSchema = new mongoose.Schema(
     practiceParticipants: { type: [practicePersonaSchema], default: [] },
     topicKind: {
       type: String,
-      enum: ['business', 'technology', 'abstract', 'custom', 'auto'],
+      enum: ['business', 'technology', 'abstract', 'custom', 'auto', 'debate', 'pitch', 'hr', 'case-study', 'general'],
       default: 'auto',
     },
     topicDetail: { type: String, default: '' },
@@ -66,13 +66,22 @@ function mapPracticeParticipants(arr) {
     .filter((p) => p.id);
 }
 
-const TOPIC_KINDS = ['business', 'technology', 'abstract', 'custom', 'auto'];
+const TOPIC_KINDS = ['business', 'technology', 'abstract', 'custom', 'auto', 'debate', 'pitch', 'hr', 'case-study', 'general'];
 
 function buildTopicLine(topicKind, topicDetailTrim) {
   const kind =
     typeof topicKind === 'string' && TOPIC_KINDS.includes(topicKind) ? topicKind : 'auto';
   const d = topicDetailTrim || '';
-  const labels = { business: 'Business', technology: 'Technology', abstract: 'Abstract' };
+  const labels = { 
+    business: 'Business', 
+    technology: 'Technology', 
+    abstract: 'Abstract',
+    debate: 'Tech Debate',
+    pitch: 'Startup Pitch',
+    hr: 'HR Discussion',
+    'case-study': 'Case Study',
+    general: 'General Discussion'
+  };
   if (kind === 'custom') return d;
   if (kind === 'auto') return '';
   const L = labels[kind];
