@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+sessions/
+temp_audio/
+bin/
+voices/*.onnx
+voices/*.onnx.json
+!voices/README.md
