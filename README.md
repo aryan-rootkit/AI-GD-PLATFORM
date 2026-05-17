@@ -18,7 +18,7 @@ ATHENA is an AI-powered communication and interview preparation platform for col
 |-------|------------|
 | Frontend | Next.js 15, React 19, Tailwind CSS |
 | Voice AI service | FastAPI, Socket.IO, faster-whisper, Ollama, Piper TTS |
-| Auth / data | Firebase (optional local file-based dev mode) |
+| Auth / data | Firebase (optional in-memory local dev mode on Vercel) |
 
 ## Quick start (local)
 

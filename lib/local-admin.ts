@@ -1,49 +1,22 @@
-import fs from "fs";
-import path from "path";
 import { randomUUID } from "crypto";
 
 import { dummyInterviews } from "@/constants";
 
-const DATA_DIR = path.join(process.cwd(), ".local-data");
-const DB_FILE = path.join(DATA_DIR, "db.json");
-
 type CollectionName = "users" | "interviews" | "feedback";
 
 type Store = Record<CollectionName, Record<string, Record<string, unknown>>>;
+
+export const DEMO_USER_ID = "demo-user";
+
+const globalStore = globalThis as typeof globalThis & {
+  __athenaMemoryStore?: Store;
+};
 
 const emptyStore = (): Store => ({
   users: {},
   interviews: {},
   feedback: {},
 });
-
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
-function loadStore(): Store {
-  ensureDataDir();
-  if (!fs.existsSync(DB_FILE)) {
-    const store = seedStore();
-    saveStore(store);
-    return store;
-  }
-
-  try {
-    return JSON.parse(fs.readFileSync(DB_FILE, "utf-8")) as Store;
-  } catch {
-    const store = seedStore();
-    saveStore(store);
-    return store;
-  }
-}
-
-function saveStore(store: Store) {
-  ensureDataDir();
-  fs.writeFileSync(DB_FILE, JSON.stringify(store, null, 2));
-}
 
 function seedStore(): Store {
   const store = emptyStore();
@@ -71,7 +44,25 @@ function seedStore(): Store {
     coverImage: "/covers/spotify.png",
   };
 
+  store.users[DEMO_USER_ID] = {
+    name: "Demo Student",
+    email: "demo@athena.local",
+    password: "demo",
+  };
+
   return store;
+}
+
+/** In-memory store — safe for Vercel serverless (no filesystem writes). */
+function getStore(): Store {
+  if (!globalStore.__athenaMemoryStore) {
+    globalStore.__athenaMemoryStore = seedStore();
+  }
+  return globalStore.__athenaMemoryStore;
+}
+
+function commitStore(store: Store) {
+  globalStore.__athenaMemoryStore = store;
 }
 
 type Filter = { field: string; op: "==" | "!="; value: unknown };
@@ -95,7 +86,7 @@ function queryDocs(
   orderDirection: "asc" | "desc" = "desc",
   limitCount?: number
 ) {
-  const store = loadStore();
+  const store = getStore();
   let docs = Object.entries(store[collection]).map(([id, data]) => ({
     id,
     data: () => data,
@@ -138,7 +129,7 @@ class LocalDocumentReference {
   }
 
   async get() {
-    const store = loadStore();
+    const store = getStore();
     const data = store[this.collection][this.docId];
     return {
       id: this.docId,
@@ -148,9 +139,9 @@ class LocalDocumentReference {
   }
 
   async set(data: Record<string, unknown>) {
-    const store = loadStore();
+    const store = getStore();
     store[this.collection][this.docId] = { ...data };
-    saveStore(store);
+    commitStore(store);
   }
 }
 
@@ -166,9 +157,9 @@ class LocalCollectionReference {
 
   async add(data: Record<string, unknown>) {
     const id = randomUUID();
-    const store = loadStore();
+    const store = getStore();
     store[this.collection][id] = { ...data };
-    saveStore(store);
+    commitStore(store);
     return { id };
   }
 
@@ -265,7 +256,7 @@ export const localAuth = {
   },
 
   async getUserByEmail(email: string) {
-    const store = loadStore();
+    const store = getStore();
     const entry = Object.entries(store.users).find(
       ([, user]) => user.email === email
     );
@@ -283,7 +274,7 @@ export const localAuth = {
 };
 
 export function findUserByEmail(email: string) {
-  const store = loadStore();
+  const store = getStore();
   const entry = Object.entries(store.users).find(
     ([, user]) => user.email === email
   );
@@ -296,12 +287,15 @@ export function createLocalUser(params: {
   email: string;
   password: string;
 }) {
-  const store = loadStore();
+  const store = getStore();
   const existing = Object.values(store.users).some(
     (u) => u.email === params.email
   );
   if (existing) {
-    return { success: false as const, message: "User already exists. Please sign in." };
+    return {
+      success: false as const,
+      message: "User already exists. Please sign in.",
+    };
   }
 
   const uid = randomUUID();
@@ -310,7 +304,7 @@ export function createLocalUser(params: {
     email: params.email,
     password: params.password,
   };
-  saveStore(store);
+  commitStore(store);
   return { success: true as const, uid };
 }
 
@@ -322,16 +316,14 @@ export function verifyLocalUser(email: string, password: string) {
   return { uid: user.id };
 }
 
-export const DEMO_USER_ID = "demo-user";
-
 export function ensureDemoUser() {
-  const store = loadStore();
+  const store = getStore();
   if (!store.users[DEMO_USER_ID]) {
     store.users[DEMO_USER_ID] = {
       name: "Demo Student",
       email: "demo@athena.local",
       password: "demo",
     };
-    saveStore(store);
+    commitStore(store);
   }
 }
