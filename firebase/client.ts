@@ -2,13 +2,13 @@ import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
-import { isLocalDevClient } from "@/lib/local-dev";
+import { isLocalDevClient, shouldSkipAuthClient } from "@/lib/local-dev";
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
-if (!isLocalDevClient()) {
+if (!isLocalDevClient() && !shouldSkipAuthClient()) {
   const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,

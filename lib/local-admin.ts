@@ -321,3 +321,17 @@ export function verifyLocalUser(email: string, password: string) {
   }
   return { uid: user.id };
 }
+
+export const DEMO_USER_ID = "demo-user";
+
+export function ensureDemoUser() {
+  const store = loadStore();
+  if (!store.users[DEMO_USER_ID]) {
+    store.users[DEMO_USER_ID] = {
+      name: "Demo Student",
+      email: "demo@athena.local",
+      password: "demo",
+    };
+    saveStore(store);
+  }
+}

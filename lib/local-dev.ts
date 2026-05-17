@@ -1,5 +1,6 @@
 /** True when running without Firebase Admin credentials (local clone setup). */
 export function isLocalDev(): boolean {
+  if (process.env.SKIP_AUTH === "true") return true;
   if (process.env.USE_LOCAL_DEV === "true") return true;
   if (process.env.USE_LOCAL_DEV === "false") return false;
 
@@ -10,8 +11,28 @@ export function isLocalDev(): boolean {
   );
 }
 
+/** Skip login UI and use a demo session (local file DB). */
+export function shouldSkipAuth(): boolean {
+  if (process.env.SKIP_AUTH === "true") return true;
+  return isLocalDev();
+}
+
+function hasValidFirebaseClientConfig(): boolean {
+  const key = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  return Boolean(key && key.length > 20 && key !== "undefined");
+}
+
 export function isLocalDevClient(): boolean {
-  return process.env.NEXT_PUBLIC_USE_LOCAL_DEV === "true";
+  if (process.env.NEXT_PUBLIC_SKIP_AUTH === "true") return true;
+  if (process.env.NEXT_PUBLIC_USE_LOCAL_DEV === "true") return true;
+  if (process.env.NEXT_PUBLIC_USE_LOCAL_DEV === "false") return false;
+  // Avoid Firebase client when API key is missing/invalid (prevents auth/invalid-api-key)
+  return !hasValidFirebaseClientConfig();
+}
+
+export function shouldSkipAuthClient(): boolean {
+  if (process.env.NEXT_PUBLIC_SKIP_AUTH === "true") return true;
+  return isLocalDevClient();
 }
 
 export function hasGoogleAiKey(): boolean {

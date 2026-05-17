@@ -4,10 +4,12 @@ import { auth, db } from "@/firebase/admin";
 import { cookies } from "next/headers";
 import {
   createLocalUser,
+  DEMO_USER_ID,
+  ensureDemoUser,
   localAuth,
   verifyLocalUser,
 } from "@/lib/local-admin";
-import { isLocalDev } from "@/lib/local-dev";
+import { isLocalDev, shouldSkipAuth } from "@/lib/local-dev";
 
 // Session duration (1 week)
 const SESSION_DURATION = 60 * 60 * 24 * 7;
@@ -156,7 +158,23 @@ export async function signOut() {
   cookieStore.delete("session");
 }
 
+/** Auto sign-in demo user when SKIP_AUTH / local dev (no Firebase). */
+export async function ensureAuthSession() {
+  if (!shouldSkipAuth()) return;
+
+  const cookieStore = await cookies();
+  if (cookieStore.get("session")?.value) return;
+
+  ensureDemoUser();
+  const token = localAuth.createSessionToken(DEMO_USER_ID);
+  await setSessionCookie(token);
+}
+
 export async function getCurrentUser(): Promise<User | null> {
+  if (shouldSkipAuth()) {
+    await ensureAuthSession();
+  }
+
   const cookieStore = await cookies();
 
   const sessionCookie = cookieStore.get("session")?.value;

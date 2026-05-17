@@ -2,11 +2,19 @@ import { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { PlatformShell } from "@/components/platform/layout/PlatformShell";
-import { isAuthenticated } from "@/lib/actions/auth.action";
+import {
+  ensureAuthSession,
+  isAuthenticated,
+} from "@/lib/actions/auth.action";
+import { shouldSkipAuth } from "@/lib/local-dev";
 
 const Layout = async ({ children }: { children: ReactNode }) => {
-  const isUserAuthenticated = await isAuthenticated();
-  if (!isUserAuthenticated) redirect("/sign-in");
+  if (shouldSkipAuth()) {
+    await ensureAuthSession();
+  } else {
+    const isUserAuthenticated = await isAuthenticated();
+    if (!isUserAuthenticated) redirect("/sign-in");
+  }
 
   return <PlatformShell>{children}</PlatformShell>;
 };
